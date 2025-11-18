@@ -18,8 +18,8 @@
     
     <!-- External app labels for parsing by entrypoint script -->
     <script type="application/json" id="external-app-labels">
-{{ range $key, $value := $home_container.Labels }}{{ if hasPrefix $key "traefik-home.app." }}{{ $key }}={{ $value }}
-{{ end }}{{ end }}    </script>
+{{ range $key, $value := $home_container.Labels }}{{ if hasPrefix "traefik-home.app." $key }}{{ $key }}={{ $value }}
+{{ end }}{{ end }}</script>
     
     <style>
         * {

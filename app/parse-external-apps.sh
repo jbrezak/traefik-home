@@ -76,22 +76,11 @@ parse_with_yq() {
         
         echo "DEBUG:   Backend URL: $url" >&2
         
-        # Extract host from rule - improved regex to handle various formats
-        # Matches: Host(`host`), Host( `host` ), Host(`host`)
+        # Extract host from rule - BusyBox-compatible
         local host=""
         
-        # Try multiple patterns
-        host=$(echo "$rule" | grep -oP 'Host\s*\(\s*`\K[^`]+' 2>/dev/null | head -1)
-        
-        if [ -z "$host" ]; then
-            # Try without spaces
-            host=$(echo "$rule" | grep -oP 'Host\(`\K[^`]+' 2>/dev/null | head -1)
-        fi
-        
-        if [ -z "$host" ]; then
-            # Try with sed as fallback
-            host=$(echo "$rule" | sed -n 's/.*Host[[:space:]]*([[:space:]]*`\([^`]*\)`.*/\1/p' | head -1)
-        fi
+        # Use sed instead of grep -P
+        host=$(echo "$rule" | sed -n 's/.*Host[[:space:]]*([[:space:]]*`\([^`]*\)`.*/\1/p' | head -1)
         
         if [ -z "$host" ]; then
             echo "DEBUG:   Skipping - could not extract host from rule: $rule" >&2
@@ -100,8 +89,9 @@ parse_with_yq() {
         
         echo "DEBUG:   Extracted host: $host" >&2
         
-        # Extract path if exists
-        local path=$(echo "$rule" | grep -oP 'Path(Prefix)?\s*\(\s*`\K[^`]+' | head -1)
+        # Extract path if exists - BusyBox-compatible
+        local path=$(echo "$rule" | sed -n 's/.*Path\(Prefix\)\?[[:space:]]*([[:space:]]*`\([^`]*\)`.*/\2/p' | head -1)
+        [ -z "$path" ] && path="/"
         [ -z "$path" ] && path="/"
         
         echo "DEBUG:   Extracted path: $path" >&2
@@ -134,32 +124,30 @@ parse_with_yq() {
         # Build full URL
         local full_url="$protocol://$host$path"
         
-        # Escape special characters for JSON
-        alias=$(echo "$alias" | sed 's/\\/\\\\/g; s/"/\\"/g')
-        icon=$(echo "$icon" | sed 's/\\/\\\\/g; s/"/\\"/g')
-        full_url=$(echo "$full_url" | sed 's/\\/\\\\/g; s/"/\\"/g')
-        router=$(echo "$router" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        # Escape for JSON (only quotes and backslashes)
+        alias=$(printf '%s' "$alias" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        icon=$(printf '%s' "$icon" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        full_url=$(printf '%s' "$full_url" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        router=$(printf '%s' "$router" | sed 's/\\/\\\\/g; s/"/\\"/g')
         
-        # Build app object
-        local app=$(cat <<APPEOF
-{
-  "Name": "$router",
-  "Alias": "$alias",
-  "URL": "$full_url",
-  "Icon": "$icon",
-  "Admin": "$admin",
-  "Enable": "$enable",
-  "Running": true,
-  "External": true
-}
-APPEOF
-)
+        # Build app object as a JSON string
+        local app_json="{\"Name\":\"$router\",\"Alias\":\"$alias\",\"URL\":\"$full_url\",\"Icon\":\"$icon\",\"Admin\":\"$admin\",\"Enable\":\"$enable\",\"Running\":true,\"External\":true}"
         
         # Add to apps array
-        apps=$(echo "$apps" | jq ". += [$app]")
+        if [ "$apps" = "[]" ]; then
+            apps="[$app_json]"
+        else
+            # Remove closing ] and add new item
+            apps="${apps%]}"
+            apps="${apps},$app_json]"
+        fi
+        
         echo "DEBUG:   Added app successfully" >&2
     done
     
+    # Output the final JSON to stdout
+    echo "DEBUG: Final JSON output:" >&2
+    echo "$apps" >&2
     echo "$apps"
 }
 
