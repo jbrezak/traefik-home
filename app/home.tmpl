@@ -1,113 +1,422 @@
 {{ $home_container := where $ "ID" .Docker.CurrentContainerID | first }}
-{{ $show_footer := or (index $home_container.Labels "traefik-home.show-footer") "true" | parseBool }}
-{{ $show_status_dot := or (index $home_container.Labels "traefik-home.show-status-dot") "true" | parseBool }}
+{{ $show_footer := or ($.Env.SHOW_FOOTER) (index $home_container.Labels "traefik-home.show-footer") "true" | parseBool }}
+{{ $show_status_dot := or ($.Env.SHOW_STATUS_DOT) (index $home_container.Labels "traefik-home.show-status-dot") "true" | parseBool }}
 {{ $sort_by := or (index $home_container.Labels "traefik-home.sort-by") "default" }}
-{{ $link_in_new_tab := or (index $home_container.Labels "traefik-home.open-link-in-new-tab") "false" | parseBool }}
+{{ $link_in_new_tab := or ($.Env.OPEN_IN_NEW_TAB) (index $home_container.Labels "traefik-home.open-link-in-new-tab") "false" | parseBool }}
 {{ $target := "_self" }}
 {{ if $link_in_new_tab }}
     {{ $target = "_blank" }}
 {{ end }}
+{{ $page_title := or ($.Env.PAGE_TITLE) "Traefik Home" }}
 
 <!DOCTYPE html>
-<html lang="en" class="min-vh-100">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Home</title>
-    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" 
-          integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
-
-    {{/* Some custom style */}}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ $page_title }}</title>
+    
+    <!-- External app labels for parsing by entrypoint script -->
+    <script type="application/json" id="external-app-labels">
+{{ range $key, $value := $home_container.Labels }}{{ if hasPrefix $key "traefik-home.app." }}{{ $key }}={{ $value }}
+{{ end }}{{ end }}    </script>
+    
     <style>
-
-        :root {
-            --tile-1-bgcolor: #3cb0c7;
-            --tile-2-bgcolor: green;
-            --tile-3-bgcolor: #ffc107;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
-        div[data-name]:before {
-            content: attr(data-name);
-            background: red;
-            min-height: 100px;
-            font-size: 4em;
-            text-transform: uppercase;
-            color: white;
-            padding: 0.5em;
-            box-shadow: 5px 5px 15px -10px rgb(0 0 0 / 75%);
-            display: table;
-            width: 100%;
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 2rem;
         }
 
-        .icon {
-            height: 160px;
-            padding: 20px;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-        }
-
-        span[data-running] {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-
-        span[data-running=true] {
-            box-shadow: 0px 0px 10px green;
-            background-color: green;
-        }
-
-        span[data-running=false] {
-            box-shadow: 0px 0px 10px red;
-            background-color: red;
-        }
-
-        /* first, nth+1, 2nth+1, etc*/
-        .row > div:nth-of-type(3n+1) div[data-name]::before {
-            background: var(--tile-1-bgcolor);
-        }
-        .row > div:nth-of-type(3n+2) div[data-name]::before {
-            background: var(--tile-2-bgcolor);
-        }
-        .row > div:nth-of-type(3n+3) div[data-name]::before {
-            background: var(--tile-3-bgcolor);
-        }
-        
-        /* Enable darkmode in a Bootstrap Page */
+        /* Dark mode support */
         @media (prefers-color-scheme: dark) {
             body {
-                background-color: var(--bs-dark);
-                color: var(--bs-light);
+                background: #1a1a1a;
+                color: #e0e0e0;
             }
-            footer .text-muted {
-                color: rgba(var(--bs-secondary-rgb),var(--bs-text-opacity))!important;
+            
+            h1 {
+                color: #ffffff !important;
+            }
+            
+            .service-card {
+                background: #2d2d2d;
+                color: #e0e0e0;
+            }
+            
+            .service-name {
+                color: #ffffff;
+            }
+            
+            .service-url {
+                color: #b0b0b0;
+            }
+            
+            .service-url:hover {
+                color: #64b5f6;
+            }
+            
+            .dropdown-menu {
+                background: #2d2d2d;
+                border: 1px solid #404040;
+            }
+            
+            .dropdown-header {
+                border-bottom-color: #404040;
+            }
+            
+            .dropdown-username {
+                color: #ffffff;
+            }
+            
+            .dropdown-item {
+                color: #b0b0b0;
+            }
+            
+            .dropdown-item:hover {
+                background: #383838;
+            }
+            
+            .dropdown-item.logout:hover {
+                background: #3d1f1f;
+            }
+            
+            footer {
+                border-top-color: #404040;
+                color: #b0b0b0;
+            }
+            
+            .admin-section {
+                border-top-color: #404040;
+            }
+
+            .admin-header h2 {
+                color: #ef5350;
+            }
+
+            .admin-badge {
+                background: #ef5350;
             }
         }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            color: #333;
+            margin: 0;
+        }
+
+        .user-menu-container {
+            position: relative;
+            display: none;
+        }
+
+        .user-menu-container.active {
+            display: block;
+        }
+
+        .user-button {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .user-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .user-button:active {
+            transform: scale(0.98);
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+            z-index: 1000;
+        }
+
+        .dropdown-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .dropdown-header {
+            padding: 1rem;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .dropdown-username {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.95rem;
+        }
+
+        .dropdown-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .dropdown-item:hover {
+            background: #f5f5f5;
+        }
+
+        .dropdown-item.logout {
+            color: #f44336;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .dropdown-item.logout:hover {
+            background: #ffebee;
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .service-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .service-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        .service-icon {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .service-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .service-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 0.25rem;
+            word-wrap: break-word;
+        }
+
+        .service-url {
+            color: #666;
+            font-size: 0.9rem;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .service-url:hover {
+            color: #0066cc;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .status-online {
+            background: #4caf50;
+        }
+
+        .status-offline {
+            background: #f44336;
+        }
+
+        /* Admin section styles */
+        .admin-section {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 2px solid #ddd;
+            display: none;
+        }
+
+        .admin-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            user-select: none;
+            margin-bottom: 1.5rem;
+        }
+
+        .admin-header h2 {
+            margin: 0;
+            color: #d32f2f;
+            font-size: 1.5rem;
+        }
+
+        .admin-badge {
+            background: #d32f2f;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .admin-toggle {
+            margin-left: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .admin-toggle.expanded {
+            transform: rotate(180deg);
+        }
+
+        .admin-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .admin-content.expanded {
+            max-height: 5000px;
+            transition: max-height 0.5s ease-in;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid #ddd;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .dropdown-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            z-index: 999;
+        }
+
+        .dropdown-overlay.show {
+            display: block;
+        }
     </style>
+    {{if $.Env.CUSTOM_CSS_URL}}
+    <link rel="stylesheet" href="{{$.Env.CUSTOM_CSS_URL}}">
+    {{end}}
+    {{if $.Env.CUSTOM_BACKGROUND_URL}}
+    <style>
+        body.custom-background::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('{{$.Env.CUSTOM_BACKGROUND_URL}}');
+            background-size: cover;
+            background-position: center;
+            filter: blur(8px) brightness(0.7);
+            z-index: -1;
+        }
+    </style>
+    {{end}}
 </head>
-<body class="d-flex flex-column min-vh-100">
-    <nav class="navbar navbar-fixed-top navbar-dark bg-dark">
-        <div class="container">
-            <div class="navbar-header">
-                <span class="navbar-brand">
-                    Applications
-                </span>
+<body{{if $.Env.CUSTOM_BACKGROUND_URL}} class="custom-background"{{end}}>
+    <div class="container">
+        <div class="header">
+            <h1>{{ $page_title }}</h1>
+            
+            <div class="user-menu-container" id="userMenuContainer">
+                <button class="user-button" id="userButton" aria-label="User menu">
+                    <span id="userInitials"></span>
+                </button>
+                <div class="dropdown-overlay" id="dropdownOverlay"></div>
+                <div class="dropdown-menu" id="dropdownMenu">
+                    <div class="dropdown-header">
+                        <div class="dropdown-username" id="fullUsername"></div>
+                    </div>
+                    <div class="dropdown-item logout" id="logoutButton">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                            <polyline points="16 17 21 12 16 7"/>
+                            <line x1="21" y1="12" x2="9" y2="12"/>
+                        </svg>
+                        Logout
+                    </div>
+                </div>
             </div>
         </div>
-    </nav>
-    <div class="container my-auto pb-4">
-        {{/* Display only containers explicitly enabled */}}
-        {{ $containers := whereLabelValueMatches $ "traefik.enable" "true" }}
-        {{ if eq $sort_by "name" }}
-            {{ $containers = sortObjectsByKeysAsc $containers "Name" }}
-        {{ end }}
-        <div class="row align-content-center justify-content-evenly">            
-            {{ range $container := $containers }}        
-
+        
+        <div class="services-grid" id="mainServicesGrid">
+            {{/* Display only containers explicitly enabled */}}
+            {{ $containers := whereLabelValueMatches $ "traefik.enable" "true" }}
+            {{ if eq $sort_by "name" }}
+                {{ $containers = sortObjectsByKeysAsc $containers "Name" }}
+            {{ end }}
+            
+            {{ range $container := $containers }}
                 {{/* Do not show myself */}}
                 {{ if eq $container.ID $home_container.ID }}
                     {{continue}}
@@ -118,9 +427,15 @@
                 {{ if $hide_container }}
                     {{continue}}
                 {{ end }}
+                
+                {{/* Do not show admin-only containers in main section */}}
+                {{ $admin_only := or (index $container.Labels "traefik-home.admin") "false" | parseBool }}
+                {{ if $admin_only }}
+                    {{continue}}
+                {{ end }}
 
                 {{/* host is saved on a label like traefik.http.routers.<name>.rule */}}
-                {{/* since <name> is unknown, we must cycle throught all labels */}}
+                {{/* since <name> is unknown, we must cycle through all labels */}}
                 {{ $service_name := "" }}
                 {{ range $k := keys $container.Labels}}
                     {{ if (regexMatch "traefik\\.http\\.routers\\.(.)+\\.rule" $k) }}
@@ -158,59 +473,301 @@
                     {{continue}}
                 {{ end }}
 
-                <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 col-6 mt-4 mx-xl-2">
-                    <a class="text-decoration-none text-secondary" target="{{ $target }}" href="{{ print $protocol "://" $host $path }}">
-                        <div class="row-cols-1 text-center">
-                            {{/* if icon is set for this docker image then display it, otherwise use a generic icon made up by the first 2 letters */}}
-                            {{ $icon := index $container.Labels "traefik-home.icon"}}
-                            {{ $name := or (index $container.Labels "traefik-home.alias") $container.Name }}                   
-                            {{ if $icon }}
-                                <div style="background-image: url({{ $icon }})" class="col mb-3 icon"></div>
-                            {{ else }}
-                                <div data-name='{{ substr 0 2 $name }}' class="col mb-3"></div>
-                            {{ end }}
-                            <span class="col text-capitalize">
-                                {{ if $show_status_dot }}
-                                    <span data-running="{{ $container.State.Running }}" class="me-2"></span>
-                                {{ end }}
-                                {{ $name }}
-                            </span>
+                {{ $icon := index $container.Labels "traefik-home.icon"}}
+                {{ $name := or (index $container.Labels "traefik-home.alias") $container.Name }}
+                {{ $url := print $protocol "://" $host $path }}
+
+                <a href="{{ $url }}" target="{{ $target }}">
+                    <div class="service-card">
+                        {{ if $icon }}
+                        <img src="{{ $icon }}" alt="{{ $name }}" class="service-icon">
+                        {{ end }}
+                        
+                        <div class="service-info">
+                            <div class="service-name">{{ $name }}</div>
+                            <div class="service-url">{{ $url }}</div>
                         </div>
-                    </a>
-                </div>
+                        
+                        {{ if $show_status_dot }}
+                        <div class="status-dot {{if $container.State.Running}}status-online{{else}}status-offline{{end}}"></div>
+                        {{ end }}
+                    </div>
+                </a>
             {{ end }}
-        </div>   
-    </div>
-    {{ if $show_footer }}
-        <footer class="border-top d-flex justify-content-center justify-content-xl-end px-xl-5 py-3">
-            <ul class="nav">
-                <li class="nav-item">
-                    <span class="nav-link px-2">
-                        <span class="badge bg-secondary position-relative" id="badge-tag">{{ index $home_container.Labels "org.opencontainers.image.version" }}</span>
-                    </span>
-                </li>
-                <li class="nav-item" id="menu-item-new-version"></li>
-                <li class="nav-item">
-                    <a href="https://github.com/santimar/traefik-home" class="nav-link px-2 text-muted">About</a>
-                </li>
-            </ul>
+        </div>
+        
+        <!-- Admin Section (populated by JavaScript) -->
+        <div class="admin-section" id="adminSection">
+            <div class="admin-header" id="adminHeader">
+                <h2>Admin Tools</h2>
+                <span class="admin-badge">ADMIN ONLY</span>
+                <svg class="admin-toggle" id="adminToggle" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </div>
+            <div class="admin-content" id="adminContent">
+                <div class="services-grid" id="adminServicesGrid">
+                    {{/* Admin-only Docker containers */}}
+                    {{ $containers := whereLabelValueMatches $ "traefik.enable" "true" }}
+                    {{ if eq $sort_by "name" }}
+                        {{ $containers = sortObjectsByKeysAsc $containers "Name" }}
+                    {{ end }}
+                    
+                    {{ range $container := $containers }}
+                        {{/* Do not show myself */}}
+                        {{ if eq $container.ID $home_container.ID }}
+                            {{continue}}
+                        {{ end }}
+
+                        {{/* Do not show hidden containers */}}
+                        {{ $hide_container := or (index $container.Labels "traefik-home.hide") "false" | parseBool }}   
+                        {{ if $hide_container }}
+                            {{continue}}
+                        {{ end }}
+                        
+                        {{/* Only show admin-only containers */}}
+                        {{ $admin_only := or (index $container.Labels "traefik-home.admin") "false" | parseBool }}
+                        {{ if not $admin_only }}
+                            {{continue}}
+                        {{ end }}
+
+                        {{/* host is saved on a label like traefik.http.routers.<name>.rule */}}
+                        {{/* since <name> is unknown, we must cycle through all labels */}}
+                        {{ $service_name := "" }}
+                        {{ range $k := keys $container.Labels}}
+                            {{ if (regexMatch "traefik\\.http\\.routers\\.(.)+\\.rule" $k) }}
+                                {{ $service_name = regexReplaceAll "traefik\\.http\\.routers\\.([^\\.]+)\\.rule" $k "$1" }}
+                                {{break}}
+                            {{ end }}
+                        {{ end }}
+
+                        {{/* skip container if service_name was not found */}}
+                        {{ if eq $service_name "" }}
+                            {{continue}}
+                        {{ end }}
+
+                        {{ $host_label := print "traefik.http.routers." $service_name ".rule" }}
+                        {{ $host_rule := index $container.Labels $host_label }}
+                        {{/* Get the first parameter if host contains multiple values */}}
+                        {{ $host_rule := split $host_rule "," | first }}
+                        {{ $host := regexReplaceAll "Host\\(\\`([a-z0-9-\\.]+)\\`\\).*" $host_rule "$1" }}
+
+                        {{/* Define an empty path in case the rules don't specify one*/}}
+                        {{ $path := "" }}
+                        {{if (regexMatch ".*?Path(Prefix)?\\(\\`([a-z0-9-\\/]+)\\`\\).*" $host_rule) }}
+                            {{ $path = regexReplaceAll ".*?Path(Prefix)?\\(\\`([a-z0-9-\\/]+)\\`\\).*" $host_rule "$2" }}
+                        {{end}}
+
+                        {{ $entrypoint_label := print "traefik.http.routers." $service_name ".entrypoints" }}
+                        {{ $entrypoint := index $container.Labels $entrypoint_label }}
+                        {{ $protocol := "" }}
+                        {{ if eq $entrypoint "websecure" }}
+                            {{ $protocol = "https" }}
+                        {{ else if eq $entrypoint "web" }}
+                            {{ $protocol = "http" }}
+                        {{ else }}
+                            {{/* entrypoint not supported */}}
+                            {{continue}}
+                        {{ end }}
+
+                        {{ $icon := index $container.Labels "traefik-home.icon"}}
+                        {{ $name := or (index $container.Labels "traefik-home.alias") $container.Name }}
+                        {{ $url := print $protocol "://" $host $path }}
+
+                        <a href="{{ $url }}" target="{{ $target }}">
+                            <div class="service-card">
+                                {{ if $icon }}
+                                <img src="{{ $icon }}" alt="{{ $name }}" class="service-icon">
+                                {{ end }}
+                                
+                                <div class="service-info">
+                                    <div class="service-name">{{ $name }}</div>
+                                    <div class="service-url">{{ $url }}</div>
+                                </div>
+                                
+                                {{ if $show_status_dot }}
+                                <div class="status-dot {{if $container.State.Running}}status-online{{else}}status-offline{{end}}"></div>
+                                {{ end }}
+                            </div>
+                        </a>
+                    {{ end }}
+                </div>
+            </div>
+        </div>
+        
+        {{ if $show_footer }}
+        <footer>
+            Powered by <a href="https://github.com/santimar/traefik-home" target="_blank">Traefik-Home</a>
         </footer>
-        <script>
-            const current_version = "{{ index $home_container.Labels "org.opencontainers.image.version" }}";
-            fetch("https://api.github.com/repos/santimar/traefik-home/releases/latest", {"headers": {"Accept": "application/vnd.github.v3+json"}})
-                .then(response => response.json())
-                .then(response => {
-                    const last_version = response.tag_name;
-                    if (last_version !== current_version) {
-                        console.log("New version available", current_version, "->", last_version);
-                        let badge = document.getElementById("badge-tag");
-                        let menu_item = document.getElementById("menu-item-new-version");
-                        badge.innerHTML += '<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">!</span>';
-                        menu_item.innerHTML = '<a href="https://github.com/santimar/traefik-home/releases/latest" class="nav-link px-2 text-decoration-underline text-muted">New version available</a>';
-                    }
-                })
-                .catch(error => console.error("There was an error while checking for updates. If this happens regularly, open an issue here: https://github.com/santimar/traefik-home/issues", error));
-        </script>
-    {{ end }}
+        {{ end }}
+    </div>
+
+    <script>
+        // Configuration from environment
+        const logoutUrl = '{{$.Env.AUTHENTIK_LOGOUT_URL}}' || '';
+        
+        // External apps data (injected by server)
+        const externalApps = window.EXTERNAL_APPS || [];
+        
+        // Fetch user info from the API endpoint
+        async function fetchUserInfo() {
+            try {
+                const response = await fetch('/api/user-info', {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    return null;
+                }
+                
+                const data = await response.json();
+                
+                // Check if username exists and is not empty
+                if (data.username && data.username !== '' && data.username !== '$http_x_authentik_username') {
+                    return {
+                        username: data.username,
+                        email: data.email,
+                        isAdmin: data.isAdmin === 'true'
+                    };
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('Failed to fetch user info:', error);
+                return null;
+            }
+        }
+
+        // Extract initials from full name
+        function getInitials(name) {
+            const parts = name.trim().split(/\s+/);
+            if (parts.length === 1) {
+                return parts[0].substring(0, 2).toUpperCase();
+            }
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        }
+
+        // Initialize user menu with username
+        function initializeUserMenu(userInfo) {
+            if (!userInfo || !userInfo.username) return;
+            
+            // Show user menu container
+            const userMenuContainer = document.getElementById('userMenuContainer');
+            userMenuContainer.classList.add('active');
+
+            // Set initials and full name
+            document.getElementById('userInitials').textContent = getInitials(userInfo.username);
+            document.getElementById('fullUsername').textContent = userInfo.username;
+
+            // Toggle dropdown menu
+            const userButton = document.getElementById('userButton');
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            const dropdownOverlay = document.getElementById('dropdownOverlay');
+            
+            userButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdownMenu.classList.toggle('show');
+                dropdownOverlay.classList.toggle('show');
+            });
+
+            // Close dropdown when clicking overlay
+            dropdownOverlay.addEventListener('click', () => {
+                dropdownMenu.classList.remove('show');
+                dropdownOverlay.classList.remove('show');
+            });
+
+            // Logout functionality
+            const logoutButton = document.getElementById('logoutButton');
+            logoutButton.addEventListener('click', async () => {
+                if (logoutUrl) {
+                    // Navigate to logout URL (will clear session and redirect)
+                    window.location.href = logoutUrl;
+                } else {
+                    // No logout URL configured, just reload
+                    window.location.reload();
+                }
+            });
+            
+            // Show admin section if user is admin
+            if (userInfo.isAdmin) {
+                const adminSection = document.getElementById('adminSection');
+                adminSection.style.display = 'block';
+                
+                // Setup admin section toggle
+                const adminHeader = document.getElementById('adminHeader');
+                const adminContent = document.getElementById('adminContent');
+                const adminToggle = document.getElementById('adminToggle');
+                
+                adminHeader.addEventListener('click', () => {
+                    adminContent.classList.toggle('expanded');
+                    adminToggle.classList.toggle('expanded');
+                });
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            const userInfo = await fetchUserInfo();
+            if (userInfo) {
+                initializeUserMenu(userInfo);
+                
+                // Render external apps if available
+                if (externalApps && externalApps.length > 0) {
+                    renderExternalApps(userInfo.isAdmin);
+                }
+            } else {
+                // Still render external apps even if not authenticated
+                if (externalApps && externalApps.length > 0) {
+                    renderExternalApps(false);
+                }
+            }
+        });
+        
+        // Render external apps from Traefik dynamic config
+        function renderExternalApps(isAdmin) {
+            const servicesGrid = document.getElementById('mainServicesGrid');
+            const adminServicesGrid = document.getElementById('adminServicesGrid');
+            
+            externalApps.forEach(app => {
+                // Skip if disabled
+                if (app.Enable === 'false') return;
+                
+                // Check if admin-only app
+                const isAdminApp = app.Admin === 'true';
+                
+                // Skip admin apps for non-admin users
+                if (isAdminApp && !isAdmin) return;
+                
+                // Determine target grid
+                const targetGrid = isAdminApp ? adminServicesGrid : servicesGrid;
+                if (!targetGrid) return;
+                
+                const showStatusDot = {{ $show_status_dot }};
+                const openInNewTab = {{ $link_in_new_tab }};
+                
+                const card = document.createElement('a');
+                card.href = app.URL;
+                if (openInNewTab) {
+                    card.target = '_blank';
+                    card.rel = 'noopener noreferrer';
+                }
+                
+                const displayName = app.Alias || app.Name;
+                
+                card.innerHTML = `
+                    <div class="service-card">
+                        ${app.Icon ? `<img src="${app.Icon}" alt="${displayName}" class="service-icon">` : ''}
+                        <div class="service-info">
+                            <div class="service-name">${displayName}</div>
+                            <div class="service-url">${app.URL}</div>
+                        </div>
+                        ${showStatusDot ? '<div class="status-dot status-online"></div>' : ''}
+                    </div>
+                `;
+                
+                targetGrid.appendChild(card);
+            });
+        }
+    </script>
 </body>
 </html>

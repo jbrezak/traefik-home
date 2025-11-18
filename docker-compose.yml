@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  traefik-home:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: traefik-home
+    volumes:
+      # Docker socket for reading container info
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      
+      # Mount custom CSS (copy from sample/custom.css and customize)
+      # - ./custom.css:/usr/share/nginx/html/custom.css:ro
+      
+      # Mount Traefik dynamic config for external apps
+      - /home/traefik/dynamic:/etc/traefik/dynamic:ro
+      
+    environment:
+      # Custom CSS file
+      # - CUSTOM_CSS_URL=/custom.css
+      
+      # Custom page title
+      - PAGE_TITLE=Homelab Services
+      
+      # Custom background image (optional)
+      # - CUSTOM_BACKGROUND_URL=
+      
+      # Authentik logout URL
+      - AUTHENTIK_LOGOUT_URL=http://auth.locker.local/flows/-/default/invalidation/
+      
+      # Path to Traefik dynamic config file
+      - TRAEFIK_DYNAMIC_CONFIG=/etc/traefik/dynamic/rules.yml
+      
+      # Display options
+      - SHOW_FOOTER=true
+      - SHOW_STATUS_DOT=true
+      - OPEN_IN_NEW_TAB=false
+      
+    labels:
+      # Traefik configuration
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-home.rule=Host(`locker.local`)"
+      - "traefik.http.routers.traefik-home.entrypoints=web"
+      - "traefik.http.services.traefik-home.loadbalancer.server.port=80"
+      
+      # Authentik forward auth middleware
+      - "traefik.http.routers.traefik-home.middlewares=chain-authentik@file"
+      
+      # Traefik-home configuration
+      - "traefik-home.show-footer=true"
+      - "traefik-home.show-status-dot=true"
+      - "traefik-home.sort-by=name"
+      
+      # External app: OpenMediaVault
+      - "traefik-home.app.omv.enable=true"
+      - "traefik-home.app.omv.alias=OpenMediaVault NAS"
+      - "traefik-home.app.omv.icon=https://www.openmediavault.org/favicon.ico"
+      
+      # External app: Rclone
+      - "traefik-home.app.rclone.enable=true"
+      - "traefik-home.app.rclone.alias=Rclone WebUI"
+      - "traefik-home.app.rclone.icon=https://rclone.org/img/logo_on_light__horizontal_color.svg"
+      - "traefik-home.app.rclone.admin=true"
+      
+      # External app: Home Assistant
+      # - "traefik-home.app.homeassistant.enable=true"
+      # - "traefik-home.app.homeassistant.alias=Home Assistant"
+      # - "traefik-home.app.homeassistant.icon=https://www.home-assistant.io/images/favicon.ico"
+      
+      # External app: Router - disabled by default
+      - "traefik-home.app.router.enable=false"
+      
+    restart: unless-stopped
+    networks:
+      - proxy
+
+  # Example Docker service
+  whoami:
+    image: traefik/whoami:latest
+    container_name: whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.locker.local`)"
+      - "traefik.http.routers.whoami.entrypoints=web"
+      - "traefik.http.routers.whoami.middlewares=chain-authentik@file"
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"
+      - "traefik-home.icon=https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/traefik.png"
+      - "traefik-home.alias=Who Am I"
+    restart: unless-stopped
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

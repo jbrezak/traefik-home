@@ -1,0 +1,88 @@
+# /etc/traefik/dynamic/rules.yml
+# External services (non-Docker) for Traefik-Home
+
+http:
+  routers:
+    # OpenMediaVault NAS
+    omv:
+      entryPoints:
+        - websecure
+      rule: "Host(`omv.example.com`)"
+      service: omv
+      tls: {}
+
+    # Rclone WebUI
+    rclone:
+      entryPoints:
+        - websecure
+      rule: "Host(`rclone.example.com`)"
+      service: rclone
+      tls: {}
+
+    # pfSense Firewall (admin only)
+    pfsense:
+      entryPoints:
+        - websecure
+      rule: "Host(`firewall.example.com`)"
+      service: pfsense
+      tls: {}
+
+    # Proxmox VE
+    proxmox:
+      entryPoints:
+        - websecure
+      rule: "Host(`proxmox.example.com`)"
+      service: proxmox
+      tls: {}
+
+    # Home Assistant
+    homeassistant:
+      entryPoints:
+        - websecure
+      rule: "Host(`ha.example.com`)"
+      service: homeassistant
+      tls: {}
+
+    # Router admin page
+    router:
+      entryPoints:
+        - web
+      rule: "Host(`router.local`)"
+      service: router
+
+  services:
+    omv:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.20:8085"
+        passHostHeader: true
+
+    rclone:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.20:5572"
+        passHostHeader: true
+
+    pfsense:
+      loadBalancer:
+        servers:
+          - url: "https://192.168.0.1:443"
+        passHostHeader: true
+
+    proxmox:
+      loadBalancer:
+        servers:
+          - url: "https://192.168.0.10:8006"
+        passHostHeader: true
+
+    homeassistant:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.30:8123"
+        passHostHeader: true
+
+    router:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.0.1"
+        passHostHeader: true
