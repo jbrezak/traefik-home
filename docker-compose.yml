@@ -11,20 +11,21 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       
       # Mount custom CSS (copy from sample/custom.css and customize)
-      # - ./custom.css:/usr/share/nginx/html/custom.css:ro
+      - /home/traefik-home/custom.css:/usr/share/nginx/html/custom.css
+      - /home/authentik/logonWallpaper.gif://usr/share/nginx/html/background.gif
       
       # Mount Traefik dynamic config for external apps
       - /home/traefik/dynamic:/etc/traefik/dynamic:ro
       
     environment:
       # Custom CSS file
-      # - CUSTOM_CSS_URL=/custom.css
+      - CUSTOM_CSS_URL=/custom.css
       
       # Custom page title
-      - PAGE_TITLE=Homelab Services
+      - PAGE_TITLE=Camano Homelab
       
       # Custom background image (optional)
-      # - CUSTOM_BACKGROUND_URL=
+      # - CUSTOM_BACKGROUND_URL=/background.gif
       
       # Authentik logout URL
       - AUTHENTIK_LOGOUT_URL=http://auth.locker.local/flows/-/default/invalidation/
@@ -56,6 +57,7 @@ services:
       - "traefik-home.app.omv.enable=true"
       - "traefik-home.app.omv.alias=OpenMediaVault NAS"
       - "traefik-home.app.omv.icon=https://www.openmediavault.org/favicon.ico"
+      - "traefik-home.app.omv.admin=true"
       
       # External app: Rclone
       - "traefik-home.app.rclone.enable=true"

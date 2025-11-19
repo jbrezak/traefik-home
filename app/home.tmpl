@@ -484,13 +484,12 @@
                         {{ end }}
                         
                         <div class="service-info">
+                            {{ if $show_status_dot }}
+                            <div class="status-dot {{if $container.State.Running}}status-online{{else}}status-offline{{end}}"></div>
+                            {{ end }}
                             <div class="service-name">{{ $name }}</div>
                             <div class="service-url">{{ $url }}</div>
                         </div>
-                        
-                        {{ if $show_status_dot }}
-                        <div class="status-dot {{if $container.State.Running}}status-online{{else}}status-offline{{end}}"></div>
-                        {{ end }}
                     </div>
                 </a>
             {{ end }}
@@ -581,13 +580,12 @@
                                 {{ end }}
                                 
                                 <div class="service-info">
+                                    {{ if $show_status_dot }}
+                                    <div class="status-dot {{if $container.State.Running}}status-online{{else}}status-offline{{end}}"></div>
+                                    {{ end }}
                                     <div class="service-name">{{ $name }}</div>
                                     <div class="service-url">{{ $url }}</div>
                                 </div>
-                                
-                                {{ if $show_status_dot }}
-                                <div class="status-dot {{if $container.State.Running}}status-online{{else}}status-offline{{end}}"></div>
-                                {{ end }}
                             </div>
                         </a>
                     {{ end }}
@@ -948,10 +946,10 @@
                     <div class="service-card">
                         ${app.Icon ? `<img src="${app.Icon}" alt="${displayName}" class="service-icon">` : ''}
                         <div class="service-info">
+                            ${showStatusDot ? '<div class="status-dot status-online"></div>' : ''}
                             <div class="service-name">${displayName}</div>
                             <div class="service-url">${app.URL}</div>
                         </div>
-                        ${showStatusDot ? '<div class="status-dot status-online"></div>' : ''}
                     </div>
                 `;
                 
