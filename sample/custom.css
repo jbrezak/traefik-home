@@ -1,4 +1,4 @@
-        * {
+* {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
@@ -69,7 +69,7 @@
             }
             
             .admin-section {
-                border-top-color: #404040;
+                border-top: none !important;  /* Hide separator */
             }
 
             .admin-header h2 {
@@ -261,7 +261,7 @@
         .admin-section {
             margin-top: 3rem;
             padding-top: 2rem;
-            border-top: 2px solid #ddd;
+            border-top: none !important;  /* Hide separator line */
             display: none;
         }
 

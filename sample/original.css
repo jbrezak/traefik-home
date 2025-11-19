@@ -63,7 +63,7 @@ body {
 /* Dark mode cards */
 @media (prefers-color-scheme: dark) {
     .service-card > div {
-        background: transparent;
+        background: #2d2d2d;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
     
@@ -72,30 +72,65 @@ body {
     }
 }
 
-/* Larger icons like original */
+/* Larger icons */
 .service-icon {
     width: 80px !important;
     height: 80px !important;
     object-fit: contain;
+    transition: opacity 0.2s, filter 0.2s;
+    position: relative;
 }
 
-/* Service info container - full width, centered */
+/* Grey out offline service icons */
+a:has(.status-offline) .service-icon {
+    opacity: 0.4;
+    filter: grayscale(100%);
+}
+
+/* Container for icon with overlay */
+.service-card {
+    position: relative;
+}
+
+/* Circle-slash overlay for offline services */
+a:has(.status-offline) .service-card::after {
+    content: '⃠';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) translateY(-20px);
+    font-size: 100px;
+    color: #f44336;
+    pointer-events: none;
+    line-height: 1;
+    font-weight: 300;
+}
+
+/* Service info container - horizontal layout for just name (no dot) */
 .service-info {
-    width: 100%;
-    text-align: center;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: none !important;
+    min-width: auto !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
-/* Service name styling - inline with status dot */
+/* Service name - no background, no dot */
 .service-name {
     font-size: 1.2rem !important;
     font-weight: 700 !important;
     color: #333;
-    margin-bottom: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
     background: transparent !important;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
+    border: none !important;
+    box-shadow: none !important;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -109,24 +144,9 @@ body {
     display: none !important;
 }
 
-/* Status dot - smaller, round, positioned with name */
+/* Hide status dot completely */
 .status-dot {
-    width: 8px !important;
-    height: 8px !important;
-    border-radius: 50% !important;
-    box-shadow: 0 0 6px currentColor;
-    flex-shrink: 0;
-    order: -1; /* Move to left side of name */
-}
-
-.status-online {
-    background: #4caf50 !important;
-    color: #4caf50;
-}
-
-.status-offline {
-    background: #f44336 !important;
-    color: #f44336;
+    display: none !important;
 }
 
 /* User menu dropdown - follow light/dark mode */
@@ -203,6 +223,10 @@ body {
 }
 
 /* Admin section toggle - make expando arrow more visible */
+.admin-section {
+    border-top: none !important;  /* Hide separator line */
+}
+
 .admin-toggle {
     margin-left: auto;
     transition: transform 0.3s ease;
