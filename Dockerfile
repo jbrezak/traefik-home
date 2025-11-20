@@ -3,13 +3,11 @@ FROM ghcr.io/santimar/traefik-home:latest
 # Install bash and required tools
 RUN apk add --no-cache bash curl jq yq inotify-tools
 
-# Copy custom entrypoint that auto-configures nginx
+# Copy app files
 COPY app/docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
-
-# Copy external apps parser
 COPY app/parse-external-apps.sh /app/parse-external-apps.sh
-RUN chmod +x /app/parse-external-apps.sh
+COPY app/logging.sh /app/logging.sh
+RUN chmod +x /app/*.sh
 
 # Copy custom template generator
 COPY app/home.tmpl /app/home.tmpl
