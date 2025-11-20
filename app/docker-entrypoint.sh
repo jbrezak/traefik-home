@@ -1,15 +1,19 @@
 #!/bin/bash
 set -e
 
-echo "Starting Traefik-Home with Authentik integration..."
+# Source logging library
+source /app/lib/logging.sh
+
+info "Starting Traefik-Home with Authentik integration..."
+debug "Debug mode is enabled"
 
 # Create custom nginx configuration if it doesn't exist
 if [ ! -f /etc/nginx/conf.d/default.conf.original ]; then
-    echo "Backing up original nginx config..."
+    info "Backing up original nginx config..."
     cp /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.original
 fi
 
-echo "Generating custom nginx configuration..."
+info "Generating custom nginx configuration..."
 cat > /etc/nginx/conf.d/default.conf << 'EOF'
 server {
     listen 80;
@@ -55,38 +59,38 @@ server {
 }
 EOF
 
-echo "Nginx configuration generated successfully"
+info "Nginx configuration generated successfully"
 
 # Test nginx configuration
-echo "Testing nginx configuration..."
+info "Testing nginx configuration..."
 nginx -t
 
 # Check if docker-gen exists and get the original entrypoint
 if [ -f /usr/local/bin/docker-gen ]; then
-    echo "Starting docker-gen..."
+    info "Starting docker-gen..."
     
     # Start the original docker-gen in the background with watch mode
     docker-gen -watch -notify "nginx -s reload" /app/home.tmpl /usr/share/nginx/html/index.html.base &
     DOCKERGEN_PID=$!
-    echo "docker-gen started with PID: $DOCKERGEN_PID"
+    info "docker-gen started with PID: $DOCKERGEN_PID"
     
     # Function to create HTML wrapper with external apps
     create_html_wrapper() {
-        echo "Creating HTML wrapper..."
+        info "Creating HTML wrapper..."
         
         # Read base HTML
         if [ ! -f /usr/share/nginx/html/index.html.base ]; then
-            echo "WARNING: Base HTML file not found yet" >&2
+            warn "WARNING: Base HTML file not found yet" >&2
             return
         fi
         
         # First, let's see what's actually in the file
-        echo "DEBUG: Checking for script tag in base HTML..." >&2
+        debug "Checking for script tag in base HTML..."
         if grep -q '<script type="application/json" id="external-app-labels">' /usr/share/nginx/html/index.html.base; then
-            echo "DEBUG: Script tag found!" >&2
+            debug "Script tag found!"
         else
-            echo "DEBUG: WARNING - Script tag NOT found in base HTML!" >&2
-            echo "DEBUG: Searching for any script tags..." >&2
+            debug "WARNING - Script tag NOT found in base HTML!"
+            debug "Searching for any script tags..."
             grep -n '<script' /usr/share/nginx/html/index.html.base | head -5 >&2
         fi
         
@@ -95,17 +99,17 @@ if [ -f /usr/local/bin/docker-gen ]; then
         HOME_CONTAINER_LABELS=$(sed -n '/<script type="application\/json" id="external-app-labels">/,/<\/script>/p' /usr/share/nginx/html/index.html.base | sed '1d;$d' | sed '/^[[:space:]]*$/d')
         
         # Debug: Show what we extracted
-        echo "DEBUG: Extracted label count: $(echo "$HOME_CONTAINER_LABELS" | grep -v '^[[:space:]]*$' | wc -l)" >&2
-        echo "DEBUG: First 10 lines of labels:" >&2
+        debug "Extracted label count: $(echo "$HOME_CONTAINER_LABELS" | grep -v '^[[:space:]]*$' | wc -l)"
+        debug "First 10 lines of labels:" >&2
         echo "$HOME_CONTAINER_LABELS" | grep -v '^[[:space:]]*$' | head -10 >&2
-        echo "DEBUG: Full labels content:" >&2
-        echo "$HOME_CONTAINER_LABELS" >&2
-        echo "DEBUG: ---" >&2
+        debug "Full labels content:"
+        debug "$HOME_CONTAINER_LABELS"
+        debug "---"
         
         # Parse external apps if dynamic config exists
         EXTERNAL_APPS_JSON="[]"
         if [ -n "$TRAEFIK_DYNAMIC_CONFIG" ] && [ -f "$TRAEFIK_DYNAMIC_CONFIG" ]; then
-            echo "Parsing external apps from: $TRAEFIK_DYNAMIC_CONFIG"
+            info "Parsing external apps from: $TRAEFIK_DYNAMIC_CONFIG"
             
             # Export for parser script
             export HOME_CONTAINER_LABELS
@@ -117,20 +121,20 @@ if [ -f /usr/local/bin/docker-gen ]; then
             
             # Extract JSON (everything that's valid JSON, usually the last line)
             EXTERNAL_APPS_JSON=$(echo "$PARSE_OUTPUT" | grep '^\[' | tail -1)
-            
+
             # Show debug output
             echo "$PARSE_OUTPUT" | grep "^DEBUG:" >&2
             
             # Validate JSON
             if echo "$EXTERNAL_APPS_JSON" | jq empty 2>/dev/null; then
                 APP_COUNT=$(echo "$EXTERNAL_APPS_JSON" | jq 'length')
-                echo "Successfully parsed $APP_COUNT external app(s)"
+                info "Successfully parsed $APP_COUNT external app(s)"
             else
-                echo "ERROR: Invalid JSON from parser, using empty array" >&2
+                error "Invalid JSON from parser, using empty array"
                 EXTERNAL_APPS_JSON="[]"
             fi
         else
-            echo "No Traefik dynamic config specified or file not found"
+            warn "No Traefik dynamic config specified or file not found"
         fi
         
         # Inject external apps data before closing </head> tag
@@ -143,14 +147,14 @@ if [ -f /usr/local/bin/docker-gen ]; then
             { print }
         ' /usr/share/nginx/html/index.html.base > /usr/share/nginx/html/index.html
         
-        echo "HTML wrapper created successfully"
+        info "HTML wrapper created successfully"
     }
     
     # Wait for initial file generation
-    echo "Waiting for docker-gen to create initial file..."
+    info "Waiting for docker-gen to create initial file..."
     for i in {1..30}; do
         if [ -f /usr/share/nginx/html/index.html.base ]; then
-            echo "Base HTML file found after ${i} seconds"
+            info "Base HTML file found after ${i} seconds"
             break
         fi
         sleep 1
@@ -160,25 +164,58 @@ if [ -f /usr/local/bin/docker-gen ]; then
     if [ -f /usr/share/nginx/html/index.html.base ]; then
         create_html_wrapper
     else
-        echo "ERROR: Base HTML file not created after 30 seconds" >&2
+        error "Base HTML file not created after 30 seconds"
         # Create a minimal fallback
         echo "<html><body><h1>Traefik Home - Waiting for services...</h1></body></html>" > /usr/share/nginx/html/index.html
     fi
     
     # Watch for changes and re-inject
-    echo "Starting file watcher..."
-    while true; do
-        if inotifywait -e modify /usr/share/nginx/html/index.html.base 2>/dev/null; then
-            echo "Detected change in base HTML, regenerating..."
+    info "Starting file watchers..."
+    
+    # Debounce tracking for regeneration
+    LAST_REGEN=0
+    
+    # Function to regenerate with debouncing
+    regenerate_if_needed() {
+        local reason="$1"
+        local now=$(date +%s)
+        local diff=$((now - LAST_REGEN))
+        
+        # Only regenerate if at least 2 seconds have passed
+        if [ $diff -ge 2 ]; then
+            info "Detected change in $reason, regenerating..."
             create_html_wrapper
+            LAST_REGEN=$now
+        else
+            debug "Skipping regeneration (debounce: ${diff}s < 2s)"
         fi
-    done &
-    WATCHER_PID=$!
-    echo "File watcher started with PID: $WATCHER_PID"
+    }
+    
+    # Watch HTML base file changes (docker-gen)
+    (
+        while true; do
+            if inotifywait -e modify /usr/share/nginx/html/index.html.base 2>/dev/null; then
+                regenerate_if_needed "base HTML"
+            fi
+        done
+    ) &
+    HTML_WATCHER_PID=$!
+    info "HTML watcher started with PID: $HTML_WATCHER_PID"
+
+    # Cleanup function
+    cleanup() {
+        info "Cleaning up watchers..."
+        [ -n "$HTML_WATCHER_PID" ] && kill $HTML_WATCHER_PID 2>/dev/null
+        [ -n "$DOCKERGEN_PID" ] && kill $DOCKERGEN_PID 2>/dev/null
+    }
+    
+    # Trap cleanup on exit
+    trap cleanup EXIT INT TERM
+    
 else
-    echo "WARNING: docker-gen not found, running in static mode"
+    warn "docker-gen not found, running in static mode"
 fi
 
 # Start nginx in foreground
-echo "Starting nginx..."
+info "Starting nginx..."
 exec nginx -g "daemon off;"
