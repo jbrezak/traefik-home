@@ -12,4 +12,4 @@ USER root
 
 # Entrypoint simply prepares and execs the test command.
 ENTRYPOINT ["/tests/test-entrypoint.sh"]
-CMD ["/test-env/run-tests.sh"]
+CMD ["/tests/test-parse-external-apps.sh"]
