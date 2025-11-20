@@ -23,7 +23,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Test environment paths
-TEST_ROOT="/test-env"
+TEST_ROOT="test-env"
 TEST_APP_DIR="$TEST_ROOT/app"
 TEST_DATA_DIR="$TEST_ROOT/data"
 TEST_TRAEFIK_DIR="$TEST_DATA_DIR/traefik"
@@ -49,23 +49,23 @@ mkdir -p "$TEST_RESULTS_DIR"
 
 # Copy application scripts
 echo -e "${GREEN}Copying application scripts...${NC}"
-if [ -f "/app/parse-external-apps.sh" ]; then
-    cp /app/parse-external-apps.sh "$TEST_APP_DIR/"
+if [ -f "app/parse-external-apps.sh" ]; then
+    cp app/parse-external-apps.sh "$TEST_APP_DIR/"
     chmod +x "$TEST_APP_DIR/parse-external-apps.sh"
 else
     echo -e "${RED}Error: app/parse-external-apps.sh not found${NC}"
     exit 1
 fi
 
-if [ -f "/app/docker-entrypoint.sh" ]; then
-    cp /app/docker-entrypoint.sh "$TEST_APP_DIR/"
+if [ -f "app/docker-entrypoint.sh" ]; then
+    cp app/docker-entrypoint.sh "$TEST_APP_DIR/"
     chmod +x "$TEST_APP_DIR/docker-entrypoint.sh"
 else
     echo -e "${YELLOW}Warning: app/docker-entrypoint.sh not found${NC}"
 fi
 
-if [ -f "/app/home.tmpl" ]; then
-    cp /app/home.tmpl "$TEST_APP_DIR/"
+if [ -f "app/home.tmpl" ]; then
+    cp app/home.tmpl "$TEST_APP_DIR/"
 else
     echo -e "${YELLOW}Warning: app/home.tmpl not found${NC}"
 fi
@@ -75,24 +75,24 @@ echo -e "${GREEN}Copying existing test files...${NC}"
 TEST_TESTS_DIR="$TEST_ROOT/tests"
 mkdir -p "$TEST_TESTS_DIR"
 
-if [ -f "/tests/test-parse-external-apps.sh" ]; then
-    cp /tests/test-parse-external-apps.sh "$TEST_TESTS_DIR/"
+if [ -f "tests/test-parse-external-apps.sh" ]; then
+    cp tests/test-parse-external-apps.sh "$TEST_TESTS_DIR/"
     chmod +x "$TEST_TESTS_DIR/test-parse-external-apps.sh"
     echo -e "  ${GREEN}✓${NC} test-parse-external-apps.sh"
 else
     echo -e "  ${YELLOW}⚠${NC} tests/test-parse-external-apps.sh not found"
 fi
 
-if [ -f "/tests/test-parser-edge-cases.sh" ]; then
-    cp /tests/test-parser-edge-cases.sh "$TEST_TESTS_DIR/"
+if [ -f "tests/test-parser-edge-cases.sh" ]; then
+    cp tests/test-parser-edge-cases.sh "$TEST_TESTS_DIR/"
     chmod +x "$TEST_TESTS_DIR/test-parser-edge-cases.sh"
     echo -e "  ${GREEN}✓${NC} test-parser-edge-cases.sh"
 else
     echo -e "  ${YELLOW}⚠${NC} tests/test-parser-edge-cases.sh not found"
 fi
 
-if [ -f "/tests/test-directory-watcher.sh" ]; then
-    cp /tests/test-directory-watcher.sh "$TEST_TESTS_DIR/"
+if [ -f "tests/test-directory-watcher.sh" ]; then
+    cp tests/test-directory-watcher.sh "$TEST_TESTS_DIR/"
     chmod +x "$TEST_TESTS_DIR/test-directory-watcher.sh"
     echo -e "  ${GREEN}✓${NC} test-directory-watcher.sh"
 else
