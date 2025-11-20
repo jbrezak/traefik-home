@@ -75,6 +75,14 @@ echo -e "${GREEN}Copying existing test files...${NC}"
 TEST_TESTS_DIR="$TEST_ROOT/tests"
 mkdir -p "$TEST_TESTS_DIR"
 
+if [ -f "tests/test-helpers.sh" ]; then
+    cp tests/test-helpers.sh "$TEST_TESTS_DIR/"
+    chmod +x "$TEST_TESTS_DIR/test-helpers.sh"
+    echo -e "  ${GREEN}✓${NC} test-helpers.sh"
+else
+    echo -e "  ${YELLOW}⚠${NC} tests/test-helpers.sh not found"
+fi
+
 if [ -f "tests/test-parse-external-apps.sh" ]; then
     cp tests/test-parse-external-apps.sh "$TEST_TESTS_DIR/"
     chmod +x "$TEST_TESTS_DIR/test-parse-external-apps.sh"
@@ -353,15 +361,10 @@ cat > "$TEST_ROOT/run-tests.sh" << 'TESTRUNNER'
 
 set -e
 
+source tests/test-helpers.sh
+
 # Get the directory where this script is located
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
 
 echo -e "${BLUE}========================================"
 echo "  Traefik-Home Test Suite Runner"

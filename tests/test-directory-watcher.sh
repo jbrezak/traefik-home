@@ -3,60 +3,7 @@
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-# Test counters
-TESTS_RUN=0
-TESTS_PASSED=0
-TESTS_FAILED=0
-
-# Test function
-test_case() {
-    local test_name="$1"
-    TESTS_RUN=$((TESTS_RUN + 1))
-    echo -e "${YELLOW}Running test: ${test_name}${NC}"
-}
-
-assert_equals() {
-    local expected="$1"
-    local actual="$2"
-    local message="$3"
-    
-    [ -z "$actual" ] && actual="0"
-    [ "$actual" = "null" ] && actual="0"
-    
-    if [ "$expected" = "$actual" ]; then
-        echo -e "${GREEN}  ✓ ${message}${NC}"
-        TESTS_PASSED=$((TESTS_PASSED + 1))
-        return 0
-    else
-        echo -e "${RED}  ✗ ${message}${NC}"
-        echo -e "${RED}    Expected: ${expected}${NC}"
-        echo -e "${RED}    Got:      ${actual}${NC}"
-        TESTS_FAILED=$((TESTS_FAILED + 1))
-        return 1
-    fi
-}
-
-assert_json_valid() {
-    local json="$1"
-    local message="$2"
-    
-    if echo "$json" | jq empty 2>/dev/null; then
-        echo -e "${GREEN}  ✓ ${message}${NC}"
-        TESTS_PASSED=$((TESTS_PASSED + 1))
-        return 0
-    else
-        echo -e "${RED}  ✗ ${message} - Invalid JSON${NC}"
-        echo -e "${RED}    JSON: ${json}${NC}"
-        TESTS_FAILED=$((TESTS_FAILED + 1))
-        return 1
-    fi
-}
+source tests/test-helpers.sh
 
 # Test: Single YAML file in directory
 test_single_yaml_file() {
