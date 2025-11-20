@@ -3,7 +3,7 @@
 
 set -e
 
-source tests/test-parse-external-apps.sh  # Reuse helper functions
+source tests/test-helpers.sh
 
 echo "========================================"
 echo "  Parser Edge Cases & Problem Areas"

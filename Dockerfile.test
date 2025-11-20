@@ -1,0 +1,15 @@
+FROM traefik-home-traefik-home
+LABEL maintainer="jbrezak"
+
+# Copy tests and entrypoint into the image
+COPY tests/*.sh /tests/
+
+# Ensure scripts are executable and readable
+RUN chmod -R a+rx /tests
+
+WORKDIR /
+USER root
+
+# Entrypoint simply prepares and execs the test command.
+ENTRYPOINT ["/tests/test-entrypoint.sh"]
+CMD ["/test-env/run-tests.sh"]
