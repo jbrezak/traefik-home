@@ -1,6 +1,9 @@
 #!/bin/bash
 # Parse Traefik dynamic config and output JSON for external apps
 
+# Source logging library
+source /app/lib/logging.sh
+
 CONFIG_FILE="${TRAEFIK_DYNAMIC_CONFIG:-}"
 HOME_CONTAINER_LABELS="${HOME_CONTAINER_LABELS:-}"
 
@@ -10,13 +13,13 @@ if [ -z "$CONFIG_FILE" ] || [ ! -f "$CONFIG_FILE" ]; then
     exit 0
 fi
 
-# Debug: Show what we received
-echo "DEBUG: Parsing config file: $CONFIG_FILE" >&2
-echo "DEBUG: HOME_CONTAINER_LABELS length: ${#HOME_CONTAINER_LABELS}" >&2
-echo "DEBUG: First 500 chars of labels:" >&2
-echo "$HOME_CONTAINER_LABELS" | head -c 500 >&2
-echo "" >&2
-echo "DEBUG: ---" >&2
+debug "Parsing config file: $CONFIG_FILE"
+debug "HOME_CONTAINER_LABELS length: ${#HOME_CONTAINER_LABELS}"
+if is_debug_enabled; then
+    debug "First 500 chars of labels:"
+    echo "$HOME_CONTAINER_LABELS" | head -c 500 >&2
+    echo "" >&2
+fi
 
 # Parse YAML and extract routers and services
 parse_config() {
@@ -160,7 +163,7 @@ get_label_value() {
     # Format: traefik-home.app.<service>.<property>=<value>
     local pattern="traefik-home.app.${service}.${property}="
     
-    echo "DEBUG:     Searching for pattern: $pattern" >&2
+    debug "    Searching for pattern: $pattern"
     
     # Method 1: Direct grep with proper escaping
     local result=$(echo "$HOME_CONTAINER_LABELS" | grep -F "$pattern" | head -1)
@@ -169,7 +172,7 @@ get_label_value() {
         # Extract value after the = sign, removing any trailing whitespace
         local value="${result#*=}"
         value=$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        echo "DEBUG:     Found value: '$value'" >&2
+        debug "    Found value: '$value'"
         echo "$value"
         return
     fi
@@ -180,7 +183,7 @@ get_label_value() {
     if [ -n "$result" ]; then
         local value="${result#*=}"
         value=$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        echo "DEBUG:     Found value (case-insensitive): '$value'" >&2
+        debug "    Found value (case-insensitive): '$value'"
         echo "$value"
         return
     fi
@@ -190,15 +193,17 @@ get_label_value() {
         if [[ "$line" == *"$pattern"* ]]; then
             local value="${line#*=}"
             value=$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            echo "DEBUG:     Found value (line-by-line): '$value'" >&2
+            debug "    Found value (line-by-line): '$value'"
             echo "$value"
             return
         fi
     done <<< "$HOME_CONTAINER_LABELS"
     
-    echo "DEBUG:     No match found for $pattern" >&2
+    debug "    No match found for $pattern"
     echo ""
 }
 
 # Main execution
-parse_config "$CONFIG_FILE"
+RESULT=$(parse_config "$CONFIG_FILE")
+
+echo "$RESULT"

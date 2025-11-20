@@ -101,7 +101,9 @@ if [ -f /usr/local/bin/docker-gen ]; then
         # Debug: Show what we extracted
         debug "Extracted label count: $(echo "$HOME_CONTAINER_LABELS" | grep -v '^[[:space:]]*$' | wc -l)"
         debug "First 10 lines of labels:" >&2
-        echo "$HOME_CONTAINER_LABELS" | grep -v '^[[:space:]]*$' | head -10 >&2
+        if is_debug_enabled; then
+            echo "$HOME_CONTAINER_LABELS" | grep -v '^[[:space:]]*$' | head -10 >&2
+        fi
         debug "Full labels content:"
         debug "$HOME_CONTAINER_LABELS"
         debug "---"
@@ -123,7 +125,9 @@ if [ -f /usr/local/bin/docker-gen ]; then
             EXTERNAL_APPS_JSON=$(echo "$PARSE_OUTPUT" | grep '^\[' | tail -1)
 
             # Show debug output
-            echo "$PARSE_OUTPUT" | grep "^DEBUG:" >&2
+            if is_debug_enabled; then
+                echo "$PARSE_OUTPUT" | grep "^DEBUG:" >&2
+            fi
             
             # Validate JSON
             if echo "$EXTERNAL_APPS_JSON" | jq empty 2>/dev/null; then
