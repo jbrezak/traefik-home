@@ -36,5 +36,9 @@ RUN chmod +x /app/generate_page.py /app/entrypoint.sh
 # Create output directory
 RUN mkdir -p /usr/share/nginx/html
 
+# Health check - verify the home page is accessible
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost/ || exit 1
+
 # Set entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]
