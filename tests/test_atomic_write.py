@@ -5,8 +5,13 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
+
+# Mock docker and requests before importing generate_page
+sys.modules['docker'] = MagicMock()
+sys.modules['requests'] = MagicMock()
 
 # Add app directory to path to import generate_page
 sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
