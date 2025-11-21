@@ -474,7 +474,12 @@
             
             // Setup user menu if Authentik is configured
             if (config.authentik_logout_url) {
-                fetchUserInfo();
+                fetchUserInfo().then(() => {
+                    // Re-render apps after user info is fetched to apply admin filter
+                    if (window.appsData) {
+                        renderApps(window.appsData);
+                    }
+                });
             }
         }
 
@@ -496,20 +501,23 @@
                 
                 // Check if username exists and is not empty
                 if (data.username && data.username !== '' && data.username !== '$http_x_authentik_username') {
-                    displayUserMenu({
+                    currentUserInfo = {
                         username: data.username,
                         email: data.email,
                         name: data.name,
                         isAdmin: data.isAdmin === 'true'
-                    });
-                    return data;
+                    };
+                    displayUserMenu(currentUserInfo);
+                    return currentUserInfo;
                 }
                 
-                // User is not logged in - hide user menu
+                // User is not logged in - clear user info and hide menu
+                currentUserInfo = null;
                 hideUserMenu();
                 return null;
             } catch (error) {
                 console.error('Failed to fetch user info:', error);
+                currentUserInfo = null;
                 hideUserMenu();
                 return null;
             }
@@ -518,9 +526,17 @@
         // Hide user menu when not authenticated
         function hideUserMenu() {
             const menuContainer = document.getElementById('userMenuContainer');
+            const userButton = document.getElementById('userButton');
+            
             if (menuContainer) {
                 menuContainer.classList.remove('active');
                 menuContainer.style.display = 'none';
+            }
+            
+            // Clear user button content
+            if (userButton) {
+                userButton.innerHTML = '';
+                userButton.onclick = null;
             }
         }
 
@@ -534,6 +550,10 @@
             const dropdownOverlay = document.getElementById('dropdownOverlay');
             
             menuContainer.classList.add('active');
+            menuContainer.style.display = 'block';
+            
+            // Clear previous content
+            userButton.innerHTML = '';
             
             // Check if user has Gravatar email
             if (userInfo.email) {
@@ -565,11 +585,17 @@
                 e.preventDefault();
                 e.stopPropagation();
                 if (config.authentik_logout_url) {
+                    // Clear user info
+                    currentUserInfo = null;
+                    
                     // Clear any cached data before redirecting
                     sessionStorage.clear();
                     localStorage.clear();
                     
-                    // Redirect to logout URL
+                    // Clear user display immediately
+                    hideUserMenu();
+                    
+                    // Redirect to logout URL (replace to prevent back button)
                     window.location.replace(config.authentik_logout_url);
                 }
             };
@@ -843,6 +869,7 @@
             }
 
             let hasAdminApps = false;
+            const isUserAdmin = currentUserInfo && currentUserInfo.isAdmin === true;
 
             // Render each app
             apps.forEach(app => {
@@ -850,17 +877,22 @@
                 
                 // Check if this is an admin app (category contains "Admin")
                 if (app.category && app.category.toLowerCase().includes('admin')) {
-                    adminGrid.appendChild(card);
-                    hasAdminApps = true;
+                    // Only show admin apps if user is admin
+                    if (isUserAdmin) {
+                        adminGrid.appendChild(card);
+                        hasAdminApps = true;
+                    }
                 } else {
                     mainGrid.appendChild(card);
                 }
             });
 
-            // Show admin section if there are admin apps
-            if (hasAdminApps) {
+            // Show admin section only if user is admin AND there are admin apps
+            if (hasAdminApps && isUserAdmin) {
                 adminSection.classList.add('visible');
                 setupAdminToggle();
+            } else {
+                adminSection.classList.remove('visible');
             }
         }
 
