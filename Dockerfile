@@ -4,11 +4,12 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     DOCKER_GEN_VERSION=0.12.0
 
-# Install system dependencies
+# Install system dependencies including nginx
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
+    nginx \
     && rm -rf /var/lib/apt/lists/*
 
 # Install docker-gen

@@ -3,6 +3,43 @@ set -e
 
 echo "Starting Traefik Home entrypoint..."
 
+# Configure nginx
+echo "Configuring nginx..."
+cat > /etc/nginx/sites-available/default << 'EOF'
+server {
+    listen 80;
+    server_name _;
+    
+    root /usr/share/nginx/html;
+    index index.html;
+    
+    # Main page location
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # Serve static files
+    location ~* \.(css|js|json|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        add_header Cache-Control "public, max-age=3600";
+    }
+    
+    # Health check endpoint
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+}
+EOF
+
+# Test nginx configuration
+echo "Testing nginx configuration..."
+nginx -t
+
+# Start nginx in the background
+echo "Starting nginx..."
+nginx
+
 # Run initial page generation
 echo "Running initial page generation..."
 python3 /app/generate_page.py
