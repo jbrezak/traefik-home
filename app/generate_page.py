@@ -245,6 +245,52 @@ def build_app_list(
     return apps
 
 
+def get_config_from_env_and_labels(docker_client: docker.DockerClient) -> Dict[str, Any]:
+    """
+    Get configuration from environment variables and traefik-home container labels.
+    
+    Args:
+        docker_client: Docker client instance
+        
+    Returns:
+        Dictionary with configuration values
+    """
+    config = {
+        "page_title": os.getenv("PAGE_TITLE", "Traefik Home"),
+        "custom_css_url": os.getenv("CUSTOM_CSS_URL", "/custom.css"),
+        "custom_background_url": os.getenv("CUSTOM_BACKGROUND_URL", ""),
+        "authentik_logout_url": os.getenv("AUTHENTIK_LOGOUT_URL", ""),
+        "show_footer": os.getenv("SHOW_FOOTER", "true").lower() == "true",
+        "show_status_dot": os.getenv("SHOW_STATUS_DOT", "true").lower() == "true",
+        "open_in_new_tab": os.getenv("OPEN_IN_NEW_TAB", "false").lower() == "true",
+        "sort_by": "default"
+    }
+    
+    # Try to get traefik-home container labels
+    try:
+        current_container_id = os.getenv("HOSTNAME")
+        if current_container_id:
+            try:
+                container = docker_client.containers.get(current_container_id)
+                labels = container.labels
+                
+                # Override with container labels if present
+                if "traefik-home.show-footer" in labels:
+                    config["show_footer"] = labels["traefik-home.show-footer"].lower() == "true"
+                if "traefik-home.show-status-dot" in labels:
+                    config["show_status_dot"] = labels["traefik-home.show-status-dot"].lower() == "true"
+                if "traefik-home.sort-by" in labels:
+                    config["sort_by"] = labels["traefik-home.sort-by"]
+                if "traefik-home.open-link-in-new-tab" in labels:
+                    config["open_in_new_tab"] = labels["traefik-home.open-link-in-new-tab"].lower() == "true"
+            except docker.errors.NotFound:
+                pass
+    except Exception as e:
+        print(f"Warning: Could not read container labels: {e}", file=sys.stderr)
+    
+    return config
+
+
 def load_template(template_path: str) -> Optional[str]:
     """
     Load template from file if it exists.
@@ -594,6 +640,10 @@ def main():
     service_urls = build_service_url_map(docker_client)
     print(f"Found {len(service_urls)} services")
     
+    # Get configuration from environment and labels
+    print("Reading configuration from environment and labels...")
+    config = get_config_from_env_and_labels(docker_client)
+    
     # Load overrides
     print(f"Loading overrides from {args.overrides}...")
     overrides = load_overrides(args.overrides)
@@ -604,9 +654,10 @@ def main():
     apps = build_app_list(service_urls, overrides)
     print(f"Generated {len(apps)} apps")
     
-    # Create apps.json with generation timestamp
+    # Create apps.json with generation timestamp and config
     apps_data = {
         "_generated": datetime.now(timezone.utc).isoformat(),
+        "config": config,
         "apps": apps
     }
     

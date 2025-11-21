@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Traefik Home</title>
+    <title id="page-title">Traefik Home</title>
+    <link rel="stylesheet" href="" id="custom-css">
     <style>
         * {
             margin: 0;
@@ -15,6 +16,11 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 2rem;
+        }
+        body.custom-background {
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
         }
         .container {
             max-width: 1200px;
@@ -40,6 +46,7 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             transition: transform 0.2s, box-shadow 0.2s;
             cursor: pointer;
+            position: relative;
         }
         .app-card:hover {
             transform: translateY(-4px);
@@ -67,6 +74,18 @@
             border-radius: 12px;
             font-size: 0.75rem;
             font-weight: 600;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4caf50;
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+        }
+        .status-dot.hidden {
+            display: none;
         }
         .app-description {
             color: #666;
@@ -117,22 +136,102 @@
             font-size: 1.2rem;
             margin-top: 3rem;
         }
+        .footer {
+            color: white;
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            font-size: 0.9rem;
+        }
+        .footer.hidden {
+            display: none;
+        }
+        .logout-button {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #333;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+        .logout-button:hover {
+            background: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .logout-button.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
+    <a href="#" id="logout-button" class="logout-button hidden">Logout</a>
     <div class="container">
-        <h1>🏠 Traefik Home</h1>
+        <h1 id="main-title">🏠 Traefik Home</h1>
         <div id="loading" class="loading">Loading apps...</div>
         <div id="error" class="error-message" style="display: none;"></div>
         <div id="apps-container"></div>
+        <div id="footer" class="footer hidden">
+            <p>Traefik Home with Authentik Integration</p>
+            <p>Generated: <span id="generated-time"></span></p>
+        </div>
     </div>
 
     <script>
+        // Configuration will be loaded from apps.json
+        let config = {
+            page_title: 'Traefik Home',
+            custom_css_url: '/custom.css',
+            custom_background_url: '',
+            authentik_logout_url: '',
+            show_footer: true,
+            show_status_dot: true,
+            open_in_new_tab: false,
+            sort_by: 'default'
+        };
+
         // Escape HTML to prevent XSS
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // Apply configuration
+        function applyConfig(cfg) {
+            config = cfg;
+            
+            // Set page title
+            document.getElementById('page-title').textContent = config.page_title;
+            document.getElementById('main-title').textContent = config.page_title;
+            
+            // Set custom CSS if provided
+            if (config.custom_css_url) {
+                document.getElementById('custom-css').href = config.custom_css_url;
+            }
+            
+            // Set custom background if provided
+            if (config.custom_background_url) {
+                document.body.style.backgroundImage = `url('${config.custom_background_url}')`;
+                document.body.classList.add('custom-background');
+            }
+            
+            // Show/hide footer
+            if (config.show_footer) {
+                document.getElementById('footer').classList.remove('hidden');
+            }
+            
+            // Show/hide logout button
+            if (config.authentik_logout_url) {
+                const logoutBtn = document.getElementById('logout-button');
+                logoutBtn.href = config.authentik_logout_url;
+                logoutBtn.classList.remove('hidden');
+            }
         }
 
         // Select preferred URL based on current hostname
@@ -165,6 +264,11 @@
             const container = document.getElementById('apps-container');
             container.innerHTML = '';
 
+            // Sort apps based on config
+            if (config.sort_by === 'name') {
+                apps.sort((a, b) => a.name.localeCompare(b.name));
+            }
+
             // Group by category
             const categories = {};
             apps.forEach(app => {
@@ -192,11 +296,24 @@
                     const card = document.createElement('div');
                     card.className = 'app-card';
 
+                    // Add status dot if enabled
+                    if (config.show_status_dot) {
+                        const statusDot = document.createElement('div');
+                        statusDot.className = 'status-dot';
+                        card.appendChild(statusDot);
+                    }
+
                     // Select preferred URL
                     const preferredUrl = selectPreferredUrl(app.urls);
                     
                     if (preferredUrl) {
-                        card.onclick = () => window.location.href = preferredUrl;
+                        card.onclick = () => {
+                            if (config.open_in_new_tab) {
+                                window.open(preferredUrl, '_blank');
+                            } else {
+                                window.location.href = preferredUrl;
+                            }
+                        };
                     }
 
                     const header = document.createElement('div');
@@ -243,6 +360,7 @@
                             }
                             urlLink.href = url;
                             urlLink.textContent = url;
+                            urlLink.target = config.open_in_new_tab ? '_blank' : '_self';
                             urlLink.onclick = (e) => e.stopPropagation();
                             urlsDiv.appendChild(urlLink);
                         });
@@ -268,6 +386,18 @@
             })
             .then(data => {
                 document.getElementById('loading').style.display = 'none';
+                
+                // Apply configuration if present
+                if (data.config) {
+                    applyConfig(data.config);
+                }
+                
+                // Set generated time
+                if (data._generated) {
+                    const genTime = new Date(data._generated);
+                    document.getElementById('generated-time').textContent = genTime.toLocaleString();
+                }
+                
                 if (data.apps && data.apps.length > 0) {
                     renderApps(data.apps);
                 } else {
