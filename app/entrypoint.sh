@@ -18,6 +18,29 @@ server {
         try_files $uri $uri/ /index.html;
     }
     
+    # API endpoint to expose Authentik headers as JSON
+    location /api/user-info {
+        default_type application/json;
+        
+        # Return user info from headers
+        return 200 '{"username":"$http_x_authentik_username","email":"$http_x_authentik_email","name":"$http_x_authentik_name","isAdmin":"$http_x_authentik_is_admin"}';
+        
+        add_header Content-Type application/json;
+        add_header Access-Control-Allow-Origin *;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    
+    # Serve custom CSS
+    location /custom.css {
+        add_header Content-Type text/css;
+        add_header Cache-Control "public, max-age=3600";
+    }
+    
+    # Serve background images if mounted
+    location /backgrounds/ {
+        add_header Cache-Control "public, max-age=86400";
+    }
+    
     # Serve static files
     location ~* \.(css|js|json|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)$ {
         add_header Cache-Control "public, max-age=3600";

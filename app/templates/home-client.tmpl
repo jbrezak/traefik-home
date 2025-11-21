@@ -226,11 +226,55 @@
                 document.getElementById('footer').classList.remove('hidden');
             }
             
-            // Show/hide logout button
+            // Show/hide logout button and fetch user info
             if (config.authentik_logout_url) {
                 const logoutBtn = document.getElementById('logout-button');
                 logoutBtn.href = config.authentik_logout_url;
                 logoutBtn.classList.remove('hidden');
+                
+                // Fetch and display user info if Authentik is configured
+                fetchUserInfo();
+            }
+        }
+
+        // Fetch user info from the API endpoint
+        async function fetchUserInfo() {
+            try {
+                const response = await fetch('/api/user-info', {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    return null;
+                }
+                
+                const data = await response.json();
+                
+                // Check if username exists and is not empty (nginx returns $http_x_authentik_username if header not present)
+                if (data.username && data.username !== '' && data.username !== '$http_x_authentik_username') {
+                    displayUserInfo({
+                        username: data.username,
+                        email: data.email,
+                        name: data.name,
+                        isAdmin: data.isAdmin === 'true'
+                    });
+                    return data;
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('Failed to fetch user info:', error);
+                return null;
+            }
+        }
+
+        // Display user info in the logout button
+        function displayUserInfo(userInfo) {
+            const logoutBtn = document.getElementById('logout-button');
+            if (userInfo && userInfo.username) {
+                // Update logout button to show username
+                logoutBtn.textContent = `${userInfo.username} | Logout`;
+                logoutBtn.title = userInfo.email || userInfo.username;
             }
         }
 
