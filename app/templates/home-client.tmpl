@@ -481,8 +481,11 @@
         // Fetch user info from the API endpoint
         async function fetchUserInfo() {
             try {
-                const response = await fetch('/api/user-info', {
-                    credentials: 'include'
+                // Add cache-busting parameter to prevent stale data after logout
+                const cacheBuster = Date.now();
+                const response = await fetch(`/api/user-info?_=${cacheBuster}`, {
+                    credentials: 'include',
+                    cache: 'no-store'
                 });
                 
                 if (!response.ok) {
@@ -502,10 +505,22 @@
                     return data;
                 }
                 
+                // User is not logged in - hide user menu
+                hideUserMenu();
                 return null;
             } catch (error) {
                 console.error('Failed to fetch user info:', error);
+                hideUserMenu();
                 return null;
+            }
+        }
+
+        // Hide user menu when not authenticated
+        function hideUserMenu() {
+            const menuContainer = document.getElementById('userMenuContainer');
+            if (menuContainer) {
+                menuContainer.classList.remove('active');
+                menuContainer.style.display = 'none';
             }
         }
 
@@ -546,9 +561,16 @@
             fullUsername.textContent = userInfo.name || userInfo.username;
             
             // Setup logout link
-            logoutButton.onclick = () => {
+            logoutButton.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 if (config.authentik_logout_url) {
-                    window.location.href = config.authentik_logout_url;
+                    // Clear any cached data before redirecting
+                    sessionStorage.clear();
+                    localStorage.clear();
+                    
+                    // Redirect to logout URL
+                    window.location.replace(config.authentik_logout_url);
                 }
             };
             
