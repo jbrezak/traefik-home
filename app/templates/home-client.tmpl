@@ -508,8 +508,13 @@
                         username: data.username,
                         email: data.email,
                         name: data.name,
-                        isAdmin: data.isAdmin === 'true'
+                        isAdmin: data.isAdmin  // Keep as string 'true' or 'false' from API
                     };
+                    console.log('User info loaded:', {
+                        username: currentUserInfo.username,
+                        isAdmin: currentUserInfo.isAdmin,
+                        isAdminType: typeof currentUserInfo.isAdmin
+                    });
                     displayUserMenu(currentUserInfo);
                     return currentUserInfo;
                 }
@@ -873,6 +878,13 @@
 
             let hasAdminApps = false;
             const isUserAdmin = currentUserInfo && currentUserInfo.isAdmin === 'true';
+            
+            console.log('Admin check:', {
+                currentUserInfo: currentUserInfo,
+                isAdmin: currentUserInfo?.isAdmin,
+                isAdminType: typeof currentUserInfo?.isAdmin,
+                isUserAdmin: isUserAdmin
+            });
 
             // Render each app
             apps.forEach(app => {
@@ -880,6 +892,7 @@
                 
                 // Check if this is an admin app (category contains "Admin")
                 if (app.category && app.category.toLowerCase().includes('admin')) {
+                    console.log('Admin app found:', app.name, 'isUserAdmin:', isUserAdmin);
                     // Only show admin apps if user is admin
                     if (isUserAdmin) {
                         adminGrid.appendChild(card);
