@@ -44,7 +44,7 @@ class TestCLIIntegration:
             "--overrides", "/nonexistent/overrides.json"
         ])
         
-        with patch("docker.from_env", return_value=mock_docker_client):
+        with patch("generate_page.docker.from_env", return_value=mock_docker_client):
             generate_page.main()
         
         # Check that apps.json was created
@@ -80,7 +80,7 @@ class TestCLIIntegration:
             "--overrides", "/nonexistent/overrides.json"
         ])
         
-        with patch("docker.from_env", return_value=mock_docker_client):
+        with patch("generate_page.docker.from_env", return_value=mock_docker_client):
             generate_page.main()
         
         # Check that HTML files were created
@@ -120,7 +120,7 @@ class TestCLIIntegration:
             "--overrides", "/nonexistent/overrides.json"
         ])
         
-        with patch("docker.from_env", return_value=mock_docker_client):
+        with patch("generate_page.docker.from_env", return_value=mock_docker_client):
             generate_page.main()
         
         # Check apps.json
@@ -157,7 +157,7 @@ class TestCLIIntegration:
             "--overrides", "/nonexistent/overrides.json"
         ])
         
-        with patch("docker.from_env", return_value=mock_docker_client):
+        with patch("generate_page.docker.from_env", return_value=mock_docker_client):
             generate_page.main()
         
         # Check that HTML files use custom template
@@ -198,7 +198,7 @@ class TestCLIIntegration:
             "--overrides", str(overrides_file)
         ])
         
-        with patch("docker.from_env", return_value=mock_docker_client):
+        with patch("generate_page.docker.from_env", return_value=mock_docker_client):
             generate_page.main()
         
         # Check apps.json

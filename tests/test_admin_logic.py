@@ -55,9 +55,9 @@ def test_no_user_info():
     """Test that admin check works correctly when no user is logged in"""
     currentUserInfo = None
     
-    # Test admin check (should be False when currentUserInfo is None)
+    # Test admin check (should be falsy when currentUserInfo is None)
     isUserAdmin = currentUserInfo and currentUserInfo.get('isAdmin') == 'true'
-    assert isUserAdmin == False, "No admin access when user is not logged in"
+    assert isUserAdmin == None or isUserAdmin == False, "No admin access when user is not logged in"
 
 
 def test_empty_is_admin():
