@@ -49,23 +49,24 @@ def atomic_write(filepath: str, content: str, mode: int = 0o644) -> None:
         raise
 
 
-def build_service_url_map(docker_client: docker.DockerClient) -> Dict[str, List[str]]:
+def build_service_url_map(docker_client: docker.DockerClient) -> tuple[Dict[str, List[str]], Dict[str, Dict[str, Any]]]:
     """
-    Build a map of service names to their URLs from Docker container labels.
+    Build a map of service names to their URLs and metadata from Docker container labels.
     
     Args:
         docker_client: Docker client instance
         
     Returns:
-        Dictionary mapping service names to list of URLs
+        Tuple of (service_urls dict, service_metadata dict)
     """
     service_urls = {}
+    service_metadata = {}
     
     try:
         containers = docker_client.containers.list()
     except Exception as e:
         print(f"Warning: Could not list Docker containers: {e}", file=sys.stderr)
-        return service_urls
+        return service_urls, service_metadata
     
     for container in containers:
         labels = container.labels
@@ -74,6 +75,21 @@ def build_service_url_map(docker_client: docker.DockerClient) -> Dict[str, List[
         service_name = labels.get("com.docker.compose.service", container.name)
         if service_name == "traefik-home":
             continue
+        
+        # Extract traefik-home specific metadata
+        icon = labels.get("traefik-home.icon", "")
+        alias = labels.get("traefik-home.alias", "")
+        hide = labels.get("traefik-home.hide", "").lower() == "true"
+        is_admin = labels.get("traefik-home.admin", "").lower() == "true"
+        
+        # Store metadata for this service
+        if service_name not in service_metadata:
+            service_metadata[service_name] = {
+                "icon": icon,
+                "alias": alias,
+                "hide": hide,
+                "is_admin": is_admin
+            }
         
         # Find all Traefik HTTP routers
         for key, value in labels.items():
@@ -113,7 +129,7 @@ def build_service_url_map(docker_client: docker.DockerClient) -> Dict[str, List[
                 unique_urls.append(url)
         service_urls[service_name] = unique_urls
     
-    return service_urls
+    return service_urls, service_metadata
 
 
 def parse_traefik_rule(rule: str, protocol: str = "http") -> List[str]:
@@ -181,46 +197,90 @@ def load_overrides(override_file: Optional[str] = None) -> Dict[str, Any]:
 
 def build_app_list(
     service_urls: Dict[str, List[str]],
-    overrides: Dict[str, Any]
+    service_metadata: Dict[str, Dict[str, Any]],
+    overrides: Dict[str, Any],
+    external_apps: Dict[str, Dict[str, Any]] = None
 ) -> List[Dict[str, Any]]:
     """
     Build final app list with all URLs and metadata.
     
     Args:
         service_urls: Map of service names to URLs
+        service_metadata: Map of service names to metadata from Docker labels
         overrides: Override configuration
+        external_apps: External apps from traefik-home.app.<name> labels
         
     Returns:
         List of app dictionaries
     """
+    if external_apps is None:
+        external_apps = {}
+    
     apps = []
     
     # Process services from Docker
     for service_name, urls in service_urls.items():
         override = overrides.get(service_name, {})
+        metadata = service_metadata.get(service_name, {})
         
-        # Check if app should be hidden
-        if override.get("Hide", False):
+        # Check if app should be hidden (from Docker label or override)
+        if metadata.get("hide", False) or override.get("Hide", False):
             continue
         
         # Check if enabled (default to True for Docker services)
         if not override.get("Enable", True):
             continue
         
+        # Determine category based on admin flag
+        is_admin = metadata.get("is_admin", False)
+        default_category = "Admin" if is_admin else "Apps"
+        
+        # Get icon from Docker label first, then override
+        icon = metadata.get("icon", "") or override.get("Icon", "")
+        
+        # Get alias from Docker label first, then override
+        alias = metadata.get("alias", "")
+        display_name = override.get("Name", alias if alias else service_name.replace("-", " ").title())
+        
         app = {
-            "name": override.get("Name", service_name.replace("-", " ").title()),
+            "name": display_name,
             "urls": urls,  # Include ALL URLs, no filtering
-            "icon": override.get("Icon", ""),
+            "icon": icon,
             "description": override.get("Description", ""),
-            "category": override.get("Category", "Apps"),
+            "category": override.get("Category", default_category),
             "badge": override.get("Badge", ""),
             "primary_url": urls[0] if urls else "",  # First URL as primary
         }
         apps.append(app)
     
+    # Process external apps from traefik-home.app.<name> labels
+    for app_name, app_config in external_apps.items():
+        # Skip if not enabled
+        if not app_config.get("enabled", False):
+            continue
+        
+        # Skip if no URL
+        if "url" not in app_config:
+            continue
+        
+        # Determine category
+        is_admin = app_config.get("is_admin", False)
+        default_category = "Admin" if is_admin else "Apps"
+        
+        app = {
+            "name": app_config.get("alias", app_name.replace("-", " ").title()),
+            "urls": [app_config["url"]],
+            "icon": app_config.get("icon", ""),
+            "description": app_config.get("description", ""),
+            "category": app_config.get("category", default_category),
+            "badge": "",
+            "primary_url": app_config["url"],
+        }
+        apps.append(app)
+    
     # Process override-only entries (apps not in Docker but defined in overrides)
     for service_name, override in overrides.items():
-        if service_name not in service_urls:
+        if service_name not in service_urls and service_name not in external_apps:
             # This is an override-only entry
             if override.get("Hide", False):
                 continue
@@ -254,6 +314,60 @@ def build_app_list(
     apps.sort(key=lambda x: x["name"])
     
     return apps
+
+
+def get_external_apps_from_labels(docker_client: docker.DockerClient) -> Dict[str, Dict[str, Any]]:
+    """
+    Get external apps defined via traefik-home.app.<name> labels on the traefik-home container.
+    
+    Args:
+        docker_client: Docker client instance
+        
+    Returns:
+        Dictionary mapping app names to their configuration
+    """
+    external_apps = {}
+    
+    try:
+        current_container_id = os.getenv("HOSTNAME")
+        if current_container_id:
+            try:
+                container = docker_client.containers.get(current_container_id)
+                labels = container.labels
+                
+                # Parse traefik-home.app.<name>.<attribute> labels
+                for key, value in labels.items():
+                    if key.startswith("traefik-home.app."):
+                        parts = key.split(".")
+                        if len(parts) >= 4:
+                            app_name = parts[2]
+                            attribute = parts[3]
+                            
+                            if app_name not in external_apps:
+                                external_apps[app_name] = {}
+                            
+                            # Map attribute names
+                            if attribute == "enable":
+                                external_apps[app_name]["enabled"] = value.lower() == "true"
+                            elif attribute == "alias":
+                                external_apps[app_name]["alias"] = value
+                            elif attribute == "icon":
+                                external_apps[app_name]["icon"] = value
+                            elif attribute == "url":
+                                external_apps[app_name]["url"] = value
+                            elif attribute == "admin":
+                                external_apps[app_name]["is_admin"] = value.lower() == "true"
+                            elif attribute == "category":
+                                external_apps[app_name]["category"] = value
+                            elif attribute == "description":
+                                external_apps[app_name]["description"] = value
+                                
+            except docker.errors.NotFound:
+                pass
+    except Exception as e:
+        print(f"Warning: Could not read traefik-home container labels: {e}", file=sys.stderr)
+    
+    return external_apps
 
 
 def get_config_from_env_and_labels(docker_client: docker.DockerClient) -> Dict[str, Any]:
@@ -648,8 +762,13 @@ def main():
     
     # Build service URL map
     print("Building service URL map from Docker...")
-    service_urls = build_service_url_map(docker_client)
+    service_urls, service_metadata = build_service_url_map(docker_client)
     print(f"Found {len(service_urls)} services")
+    
+    # Get external apps from traefik-home container labels
+    print("Reading external apps from traefik-home container labels...")
+    external_apps = get_external_apps_from_labels(docker_client)
+    print(f"Found {len(external_apps)} external apps")
     
     # Get configuration from environment and labels
     print("Reading configuration from environment and labels...")
@@ -662,8 +781,14 @@ def main():
     
     # Build app list
     print("Building app list...")
-    apps = build_app_list(service_urls, overrides)
+    apps = build_app_list(service_urls, service_metadata, overrides, external_apps)
     print(f"Generated {len(apps)} apps")
+    
+    # Debug output: print all apps found
+    print("\n=== Apps List ===")
+    for app in apps:
+        print(f"  - {app['name']}: {app['primary_url']} (icon: {'yes' if app['icon'] else 'no'}, category: {app['category']})")
+    print("=================\n")
     
     # Create apps.json with generation timestamp and config
     apps_data = {

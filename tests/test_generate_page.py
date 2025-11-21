@@ -88,7 +88,7 @@ class TestBuildServiceUrlMap:
         }
         mock_client.containers.list.return_value = [mock_container]
         
-        result = generate_page.build_service_url_map(mock_client)
+        result, metadata = generate_page.build_service_url_map(mock_client)
         
         assert "test-service" in result
         assert "http://test.example.com" in result["test-service"]
@@ -105,7 +105,7 @@ class TestBuildServiceUrlMap:
         }
         mock_client.containers.list.return_value = [mock_container]
         
-        result = generate_page.build_service_url_map(mock_client)
+        result, metadata = generate_page.build_service_url_map(mock_client)
         
         # Should have one URL, not two (redirect should be skipped)
         assert len(result["test-service"]) == 1
@@ -122,7 +122,7 @@ class TestBuildServiceUrlMap:
         }
         mock_client.containers.list.return_value = [mock_container]
         
-        result = generate_page.build_service_url_map(mock_client)
+        result, metadata = generate_page.build_service_url_map(mock_client)
         
         # Should have one unique URL
         assert len(result["test-service"]) == 1
@@ -143,7 +143,7 @@ class TestBuildAppList:
         }
         overrides = {}
         
-        apps = generate_page.build_app_list(service_urls, overrides)
+        apps = generate_page.build_app_list(service_urls, {}, overrides)
         
         assert len(apps) == 1
         app = apps[0]
@@ -159,7 +159,7 @@ class TestBuildAppList:
         }
         overrides = {}
         
-        apps = generate_page.build_app_list(service_urls, overrides)
+        apps = generate_page.build_app_list(service_urls, {}, overrides)
         
         assert len(apps) == 1
     
@@ -172,7 +172,7 @@ class TestBuildAppList:
             "test-service": {"Hide": True}
         }
         
-        apps = generate_page.build_app_list(service_urls, overrides)
+        apps = generate_page.build_app_list(service_urls, {}, overrides)
         
         assert len(apps) == 0
     
@@ -185,7 +185,7 @@ class TestBuildAppList:
             "test-service": {"Enable": False}
         }
         
-        apps = generate_page.build_app_list(service_urls, overrides)
+        apps = generate_page.build_app_list(service_urls, {}, overrides)
         
         assert len(apps) == 0
     
@@ -204,7 +204,7 @@ class TestBuildAppList:
             }
         }
         
-        apps = generate_page.build_app_list(service_urls, overrides)
+        apps = generate_page.build_app_list(service_urls, {}, overrides)
         
         assert len(apps) == 1
         app = apps[0]
@@ -225,7 +225,7 @@ class TestBuildAppList:
             }
         }
         
-        apps = generate_page.build_app_list(service_urls, overrides)
+        apps = generate_page.build_app_list(service_urls, {}, overrides)
         
         assert len(apps) == 1
         app = apps[0]
@@ -242,7 +242,7 @@ class TestBuildAppList:
             }
         }
         
-        apps = generate_page.build_app_list(service_urls, overrides)
+        apps = generate_page.build_app_list(service_urls, {}, overrides)
         
         # Should not appear without Enable=true
         assert len(apps) == 0
@@ -261,7 +261,7 @@ class TestBuildAppList:
             }
         }
         
-        apps = generate_page.build_app_list(service_urls, overrides)
+        apps = generate_page.build_app_list(service_urls, {}, overrides)
         
         assert len(apps) == 1
         app = apps[0]
@@ -279,7 +279,7 @@ class TestBuildAppList:
         }
         overrides = {}
         
-        apps = generate_page.build_app_list(service_urls, overrides)
+        apps = generate_page.build_app_list(service_urls, {}, overrides)
         
         assert len(apps) == 1
         app = apps[0]
