@@ -953,6 +953,7 @@
                 }
                 
                 if (data.apps && data.apps.length > 0) {
+                    window.appsData = data.apps; // Store for re-render after user info loads
                     renderApps(data.apps);
                 } else {
                     document.getElementById('error').textContent = 'No apps found';
