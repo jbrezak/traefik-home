@@ -2,7 +2,13 @@
 Unit tests for external app discovery and inclusion in apps.json
 """
 import pytest
-from unittest.mock import Mock, MagicMock
+import sys
+from unittest.mock import Mock, MagicMock, patch
+
+# Mock the imports before importing generate_page
+sys.modules['docker'] = MagicMock()
+sys.modules['requests'] = MagicMock()
+
 from app.generate_page import get_external_apps_from_labels, build_app_list
 
 
