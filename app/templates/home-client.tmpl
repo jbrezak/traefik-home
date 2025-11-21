@@ -6,122 +6,371 @@
     <title id="page-title">Traefik Home</title>
     <link rel="stylesheet" href="" id="custom-css">
     <style>
+        /* Embed original.css inline as base styles */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            background: #f5f5f5;
             padding: 2rem;
         }
+
         body.custom-background {
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
         }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: #1a1a1a;
+                color: #e0e0e0;
+            }
+            
+            h1 {
+                color: #ffffff !important;
+            }
+            
+            .service-card {
+                background: #2d2d2d;
+                color: #e0e0e0;
+            }
+            
+            .service-name {
+                color: #ffffff;
+            }
+            
+            .service-url {
+                color: #b0b0b0;
+            }
+            
+            .service-url:hover {
+                color: #64b5f6;
+            }
+            
+            .dropdown-menu {
+                background: #2d2d2d;
+                border: 1px solid #404040;
+            }
+            
+            .dropdown-header {
+                border-bottom-color: #404040;
+            }
+            
+            .dropdown-username {
+                color: #ffffff;
+            }
+            
+            .dropdown-item {
+                color: #b0b0b0;
+            }
+            
+            .dropdown-item:hover {
+                background: #383838;
+            }
+            
+            .dropdown-item.logout:hover {
+                background: #3d1f1f;
+            }
+            
+            footer {
+                border-top-color: #404040;
+                color: #b0b0b0;
+            }
+            
+            .admin-section {
+                border-top: none !important;
+            }
+
+            .admin-header h2 {
+                color: #ef5350;
+            }
+
+            .admin-badge {
+                background: #ef5350;
+            }
+        }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
         }
-        h1 {
-            color: white;
-            text-align: center;
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 2rem;
-            font-size: 2.5rem;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }
-        .apps-grid {
+
+        h1 {
+            color: #333;
+            margin: 0;
+        }
+
+        .user-menu-container {
+            position: relative;
+            display: none;
+        }
+
+        .user-menu-container.active {
+            display: block;
+        }
+
+        .user-button {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .user-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .user-button:active {
+            transform: scale(0.98);
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+            z-index: 1000;
+        }
+
+        .dropdown-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .dropdown-header {
+            padding: 1rem;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .dropdown-username {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.95rem;
+        }
+
+        .dropdown-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .dropdown-item:hover {
+            background: #f5f5f5;
+        }
+
+        .dropdown-item.logout {
+            color: #f44336;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .dropdown-item.logout:hover {
+            background: #ffebee;
+        }
+
+        .services-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 1.5rem;
-            margin-top: 2rem;
         }
-        .app-card {
+
+        .service-card {
             background: white;
-            border-radius: 12px;
+            border-radius: 8px;
             padding: 1.5rem;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-            position: relative;
-        }
-        .app-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
-        }
-        .app-header {
             display: flex;
             align-items: center;
             gap: 1rem;
-            margin-bottom: 1rem;
         }
-        .app-icon {
-            font-size: 2rem;
+
+        .service-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
         }
-        .app-name {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #333;
+
+        .service-icon {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .service-info {
             flex: 1;
+            min-width: 0;
         }
-        .app-badge {
-            background: #667eea;
-            color: white;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
+
+        .service-name {
             font-weight: 600;
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 0.25rem;
+            word-wrap: break-word;
         }
+
+        .service-url {
+            color: #666;
+            font-size: 0.9rem;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .service-url:hover {
+            color: #0066cc;
+        }
+
         .status-dot {
-            width: 12px;
-            height: 12px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            background: #4caf50;
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
+            flex-shrink: 0;
         }
+
+        .status-online {
+            background: #4caf50;
+        }
+
+        .status-offline {
+            background: #f44336;
+        }
+
         .status-dot.hidden {
             display: none;
         }
-        .app-description {
+
+        /* Admin section styles */
+        .admin-section {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: none !important;
+            display: none;
+        }
+
+        .admin-section.visible {
+            display: block;
+        }
+
+        .admin-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            user-select: none;
+            margin-bottom: 1.5rem;
+        }
+
+        .admin-header h2 {
+            margin: 0;
+            color: #d32f2f;
+            font-size: 1.5rem;
+        }
+
+        .admin-badge {
+            background: #d32f2f;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .admin-toggle {
+            margin-left: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .admin-toggle.expanded {
+            transform: rotate(180deg);
+        }
+
+        .admin-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .admin-content.expanded {
+            max-height: 5000px;
+            transition: max-height 0.5s ease-in;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid #ddd;
             color: #666;
             font-size: 0.9rem;
-            margin-bottom: 1rem;
         }
-        .app-urls {
-            margin-top: 1rem;
-            padding-top: 1rem;
-            border-top: 1px solid #eee;
+
+        footer.hidden {
+            display: none;
         }
-        .app-url {
-            display: block;
-            color: #667eea;
+
+        a {
+            color: inherit;
             text-decoration: none;
-            font-size: 0.85rem;
-            padding: 0.25rem 0;
-            word-break: break-all;
         }
-        .app-url:hover {
-            text-decoration: underline;
+
+        .dropdown-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            z-index: 999;
         }
-        .app-url.primary {
-            font-weight: 600;
-            font-size: 0.95rem;
+
+        .dropdown-overlay.show {
+            display: block;
         }
-        .category-section {
-            margin-bottom: 3rem;
+
+        .loading {
+            text-align: center;
+            font-size: 1.2rem;
+            margin-top: 3rem;
         }
-        .category-title {
-            color: white;
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid rgba(255,255,255,0.3);
-        }
+
         .error-message {
             background: #fee;
             color: #c33;
@@ -130,56 +379,49 @@
             margin: 2rem 0;
             text-align: center;
         }
-        .loading {
-            color: white;
-            text-align: center;
-            font-size: 1.2rem;
-            margin-top: 3rem;
-        }
-        .footer {
-            color: white;
-            text-align: center;
-            margin-top: 3rem;
-            padding-top: 2rem;
-            border-top: 1px solid rgba(255,255,255,0.2);
-            font-size: 0.9rem;
-        }
-        .footer.hidden {
-            display: none;
-        }
-        .logout-button {
-            position: fixed;
-            top: 2rem;
-            right: 2rem;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            text-decoration: none;
-            color: #333;
-            font-weight: 600;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: all 0.2s;
-        }
-        .logout-button:hover {
-            background: white;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
-        .logout-button.hidden {
-            display: none;
-        }
     </style>
 </head>
 <body>
-    <a href="#" id="logout-button" class="logout-button hidden">Logout</a>
     <div class="container">
-        <h1 id="main-title">🏠 Traefik Home</h1>
-        <div id="loading" class="loading">Loading apps...</div>
-        <div id="error" class="error-message" style="display: none;"></div>
-        <div id="apps-container"></div>
-        <div id="footer" class="footer hidden">
-            <p>Traefik Home with Authentik Integration</p>
-            <p>Generated: <span id="generated-time"></span></p>
+        <div class="header">
+            <h1 id="page-title">Traefik Home</h1>
+            <div class="user-menu-container" id="userMenuContainer">
+                <button class="user-button" id="userButton" aria-label="User menu"></button>
+                <div class="dropdown-overlay" id="dropdownOverlay"></div>
+                <div class="dropdown-menu" id="dropdownMenu">
+                    <div class="dropdown-header">
+                        <div class="dropdown-username" id="fullUsername"></div>
+                    </div>
+                    <div class="dropdown-item logout" id="logoutButton">
+                        <span>🚪</span>
+                        <span>Logout</span>
+                    </div>
+                </div>
+            </div>
         </div>
+
+        <div id="loading" class="loading">Loading services...</div>
+        <div id="error" class="error-message" style="display: none;"></div>
+        
+        <div class="services-grid" id="mainServicesGrid"></div>
+
+        <div class="admin-section" id="adminSection">
+            <div class="admin-header" id="adminHeader">
+                <h2>🔧 Administration</h2>
+                <span class="admin-badge">ADMIN ONLY</span>
+                <svg class="admin-toggle" id="adminToggle" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </div>
+            <div class="admin-content" id="adminContent">
+                <div class="services-grid" id="adminServicesGrid"></div>
+            </div>
+        </div>
+
+        <footer id="footer" class="hidden">
+            <p>Traefik Home</p>
+            <p>Generated: <span id="generated-time"></span></p>
+        </footer>
     </div>
 
     <script>
@@ -195,20 +437,12 @@
             sort_by: 'default'
         };
 
-        // Escape HTML to prevent XSS
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
         // Apply configuration
         function applyConfig(cfg) {
             config = cfg;
             
             // Set page title
             document.getElementById('page-title').textContent = config.page_title;
-            document.getElementById('main-title').textContent = config.page_title;
             
             // Set custom CSS if provided
             if (config.custom_css_url) {
@@ -226,13 +460,8 @@
                 document.getElementById('footer').classList.remove('hidden');
             }
             
-            // Show/hide logout button and fetch user info
+            // Setup user menu if Authentik is configured
             if (config.authentik_logout_url) {
-                const logoutBtn = document.getElementById('logout-button');
-                logoutBtn.href = config.authentik_logout_url;
-                logoutBtn.classList.remove('hidden');
-                
-                // Fetch and display user info if Authentik is configured
                 fetchUserInfo();
             }
         }
@@ -250,9 +479,9 @@
                 
                 const data = await response.json();
                 
-                // Check if username exists and is not empty (nginx returns $http_x_authentik_username if header not present)
+                // Check if username exists and is not empty
                 if (data.username && data.username !== '' && data.username !== '$http_x_authentik_username') {
-                    displayUserInfo({
+                    displayUserMenu({
                         username: data.username,
                         email: data.email,
                         name: data.name,
@@ -268,14 +497,49 @@
             }
         }
 
-        // Display user info in the logout button
-        function displayUserInfo(userInfo) {
-            const logoutBtn = document.getElementById('logout-button');
-            if (userInfo && userInfo.username) {
-                // Update logout button to show username
-                logoutBtn.textContent = `${userInfo.username} | Logout`;
-                logoutBtn.title = userInfo.email || userInfo.username;
-            }
+        // Display user menu
+        function displayUserMenu(userInfo) {
+            const menuContainer = document.getElementById('userMenuContainer');
+            const userButton = document.getElementById('userButton');
+            const fullUsername = document.getElementById('fullUsername');
+            const logoutButton = document.getElementById('logoutButton');
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            const dropdownOverlay = document.getElementById('dropdownOverlay');
+            
+            menuContainer.classList.add('active');
+            
+            // Set user initials in button
+            const initials = userInfo.username ? userInfo.username.substring(0, 2).toUpperCase() : '??';
+            userButton.textContent = initials;
+            
+            // Set full username in dropdown
+            fullUsername.textContent = userInfo.name || userInfo.username;
+            
+            // Setup logout link
+            logoutButton.onclick = () => {
+                if (config.authentik_logout_url) {
+                    window.location.href = config.authentik_logout_url;
+                }
+            };
+            
+            // Toggle dropdown on button click
+            userButton.onclick = (e) => {
+                e.stopPropagation();
+                const isVisible = dropdownMenu.classList.contains('show');
+                if (isVisible) {
+                    dropdownMenu.classList.remove('show');
+                    dropdownOverlay.classList.remove('show');
+                } else {
+                    dropdownMenu.classList.add('show');
+                    dropdownOverlay.classList.add('show');
+                }
+            };
+            
+            // Close dropdown when clicking overlay
+            dropdownOverlay.onclick = () => {
+                dropdownMenu.classList.remove('show');
+                dropdownOverlay.classList.remove('show');
+            };
         }
 
         // Select preferred URL based on current hostname
@@ -303,121 +567,117 @@
             return urls[0];
         }
 
+        // Render a service card
+        function renderServiceCard(app) {
+            const link = document.createElement('a');
+            link.href = '#';
+            
+            const card = document.createElement('div');
+            card.className = 'service-card';
+
+            // Add icon if present
+            if (app.icon) {
+                const icon = document.createElement('img');
+                icon.src = app.icon;
+                icon.alt = app.name;
+                icon.className = 'service-icon';
+                card.appendChild(icon);
+            }
+
+            // Service info container
+            const info = document.createElement('div');
+            info.className = 'service-info';
+
+            // Add status dot if enabled
+            if (config.show_status_dot) {
+                const statusDot = document.createElement('div');
+                statusDot.className = 'status-dot status-online';
+                info.appendChild(statusDot);
+            }
+
+            // Service name
+            const name = document.createElement('div');
+            name.className = 'service-name';
+            name.textContent = app.name;
+            info.appendChild(name);
+
+            // Service URL (preferred)
+            const preferredUrl = selectPreferredUrl(app.urls);
+            if (preferredUrl) {
+                const url = document.createElement('div');
+                url.className = 'service-url';
+                url.textContent = preferredUrl;
+                info.appendChild(url);
+                
+                // Setup click handler
+                link.onclick = (e) => {
+                    e.preventDefault();
+                    if (config.open_in_new_tab) {
+                        window.open(preferredUrl, '_blank');
+                    } else {
+                        window.location.href = preferredUrl;
+                    }
+                };
+            }
+
+            card.appendChild(info);
+            link.appendChild(card);
+            
+            return link;
+        }
+
         // Render apps
         function renderApps(apps) {
-            const container = document.getElementById('apps-container');
-            container.innerHTML = '';
+            const mainGrid = document.getElementById('mainServicesGrid');
+            const adminGrid = document.getElementById('adminServicesGrid');
+            const adminSection = document.getElementById('adminSection');
+            
+            mainGrid.innerHTML = '';
+            adminGrid.innerHTML = '';
 
             // Sort apps based on config
             if (config.sort_by === 'name') {
                 apps.sort((a, b) => a.name.localeCompare(b.name));
             }
 
-            // Group by category
-            const categories = {};
+            let hasAdminApps = false;
+
+            // Render each app
             apps.forEach(app => {
-                const category = app.category || 'Apps';
-                if (!categories[category]) {
-                    categories[category] = [];
+                const card = renderServiceCard(app);
+                
+                // Check if this is an admin app (category contains "Admin")
+                if (app.category && app.category.toLowerCase().includes('admin')) {
+                    adminGrid.appendChild(card);
+                    hasAdminApps = true;
+                } else {
+                    mainGrid.appendChild(card);
                 }
-                categories[category].push(app);
             });
 
-            // Render each category
-            Object.keys(categories).sort().forEach(category => {
-                const section = document.createElement('div');
-                section.className = 'category-section';
+            // Show admin section if there are admin apps
+            if (hasAdminApps) {
+                adminSection.classList.add('visible');
+                setupAdminToggle();
+            }
+        }
 
-                const title = document.createElement('h2');
-                title.className = 'category-title';
-                title.textContent = category;
-                section.appendChild(title);
+        // Setup admin section toggle
+        function setupAdminToggle() {
+            const adminHeader = document.getElementById('adminHeader');
+            const adminToggle = document.getElementById('adminToggle');
+            const adminContent = document.getElementById('adminContent');
 
-                const grid = document.createElement('div');
-                grid.className = 'apps-grid';
-
-                categories[category].forEach(app => {
-                    const card = document.createElement('div');
-                    card.className = 'app-card';
-
-                    // Add status dot if enabled
-                    if (config.show_status_dot) {
-                        const statusDot = document.createElement('div');
-                        statusDot.className = 'status-dot';
-                        card.appendChild(statusDot);
-                    }
-
-                    // Select preferred URL
-                    const preferredUrl = selectPreferredUrl(app.urls);
-                    
-                    if (preferredUrl) {
-                        card.onclick = () => {
-                            if (config.open_in_new_tab) {
-                                window.open(preferredUrl, '_blank');
-                            } else {
-                                window.location.href = preferredUrl;
-                            }
-                        };
-                    }
-
-                    const header = document.createElement('div');
-                    header.className = 'app-header';
-
-                    if (app.icon) {
-                        const icon = document.createElement('span');
-                        icon.className = 'app-icon';
-                        icon.textContent = app.icon;
-                        header.appendChild(icon);
-                    }
-
-                    const name = document.createElement('div');
-                    name.className = 'app-name';
-                    name.textContent = app.name;
-                    header.appendChild(name);
-
-                    if (app.badge) {
-                        const badge = document.createElement('span');
-                        badge.className = 'app-badge';
-                        badge.textContent = app.badge;
-                        header.appendChild(badge);
-                    }
-
-                    card.appendChild(header);
-
-                    if (app.description) {
-                        const desc = document.createElement('div');
-                        desc.className = 'app-description';
-                        desc.textContent = app.description;
-                        card.appendChild(desc);
-                    }
-
-                    // Show all URLs
-                    if (app.urls && app.urls.length > 0) {
-                        const urlsDiv = document.createElement('div');
-                        urlsDiv.className = 'app-urls';
-
-                        app.urls.forEach((url, idx) => {
-                            const urlLink = document.createElement('a');
-                            urlLink.className = 'app-url';
-                            if (url === preferredUrl) {
-                                urlLink.className += ' primary';
-                            }
-                            urlLink.href = url;
-                            urlLink.textContent = url;
-                            urlLink.target = config.open_in_new_tab ? '_blank' : '_self';
-                            urlLink.onclick = (e) => e.stopPropagation();
-                            urlsDiv.appendChild(urlLink);
-                        });
-
-                        card.appendChild(urlsDiv);
-                    }
-
-                    grid.appendChild(card);
-                });
-
-                section.appendChild(grid);
-                container.appendChild(section);
-            });
+            adminHeader.onclick = () => {
+                const isExpanded = adminContent.classList.contains('expanded');
+                if (isExpanded) {
+                    adminContent.classList.remove('expanded');
+                    adminToggle.classList.remove('expanded');
+                } else {
+                    adminContent.classList.add('expanded');
+                    adminToggle.classList.add('expanded');
+                }
+            };
         }
 
         // Load apps
@@ -452,7 +712,7 @@
             .catch(error => {
                 console.error('Error loading apps:', error);
                 document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').textContent = 'Error loading apps: ' + error.message;
+                document.getElementById('error').textContent = 'Failed to load apps: ' + error.message;
                 document.getElementById('error').style.display = 'block';
             });
     </script>
