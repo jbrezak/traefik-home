@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-# Add parent directory to path to import generate_page
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add app directory to path to import generate_page
+sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
 import generate_page
 
 
