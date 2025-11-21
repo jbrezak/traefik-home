@@ -58,7 +58,7 @@ class TestCLIIntegration:
         # Check that app has full URL list
         app = data["apps"][0]
         assert "urls" in app
-        assert "https://test.example.com" in app["urls"]
+        assert "http://test.example.com" in app["urls"]
     
     def test_main_creates_html_files(self, tmp_path, monkeypatch):
         """Test that main() creates home.html and index.html"""
@@ -128,9 +128,9 @@ class TestCLIIntegration:
         assert len(data["apps"]) == 1
         app = data["apps"][0]
         assert len(app["urls"]) == 3
-        assert "https://test1.example.com" in app["urls"]
-        assert "https://test2.example.com" in app["urls"]
-        assert "https://test3.example.com" in app["urls"]
+        assert "http://test1.example.com" in app["urls"]
+        assert "http://test2.example.com" in app["urls"]
+        assert "http://test3.example.com" in app["urls"]
     
     def test_main_uses_custom_template(self, tmp_path, monkeypatch):
         """Test that main() uses custom template if provided"""

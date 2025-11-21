@@ -51,20 +51,20 @@ class TestParseTraefikRule:
         """Test parsing a single Host() rule"""
         rule = "Host(`example.com`)"
         urls = generate_page.parse_traefik_rule(rule)
-        assert urls == ["https://example.com"]
+        assert urls == ["http://example.com"]
     
     def test_parse_multiple_hosts(self):
         """Test parsing multiple Host() rules with OR"""
         rule = "Host(`example.com`) || Host(`www.example.com`)"
         urls = generate_page.parse_traefik_rule(rule)
-        assert "https://example.com" in urls
-        assert "https://www.example.com" in urls
+        assert "http://example.com" in urls
+        assert "http://www.example.com" in urls
     
     def test_parse_host_with_single_quotes(self):
         """Test parsing Host() with single quotes"""
         rule = "Host('example.com')"
         urls = generate_page.parse_traefik_rule(rule)
-        assert urls == ["https://example.com"]
+        assert urls == ["http://example.com"]
     
     def test_parse_empty_rule(self):
         """Test parsing empty rule"""
@@ -91,7 +91,7 @@ class TestBuildServiceUrlMap:
         result = generate_page.build_service_url_map(mock_client)
         
         assert "test-service" in result
-        assert "https://test.example.com" in result["test-service"]
+        assert "http://test.example.com" in result["test-service"]
     
     def test_build_service_url_map_skips_redirects(self):
         """Test that redirect routers are skipped"""
@@ -126,7 +126,7 @@ class TestBuildServiceUrlMap:
         
         # Should have one unique URL
         assert len(result["test-service"]) == 1
-        assert "https://test.example.com" in result["test-service"]
+        assert "http://test.example.com" in result["test-service"]
 
 
 class TestBuildAppList:
@@ -136,9 +136,9 @@ class TestBuildAppList:
         """Test that all URLs are included in app list (no host filtering)"""
         service_urls = {
             "test-service": [
-                "https://test.example.com",
-                "https://test.other.com",
-                "https://test.local.com"
+                "http://test.example.com",
+                "http://test.other.com",
+                "http://test.local.com"
             ]
         }
         overrides = {}
@@ -148,14 +148,14 @@ class TestBuildAppList:
         assert len(apps) == 1
         app = apps[0]
         assert len(app["urls"]) == 3
-        assert "https://test.example.com" in app["urls"]
-        assert "https://test.other.com" in app["urls"]
-        assert "https://test.local.com" in app["urls"]
+        assert "http://test.example.com" in app["urls"]
+        assert "http://test.other.com" in app["urls"]
+        assert "http://test.local.com" in app["urls"]
     
     def test_build_app_list_enable_defaulting(self):
         """Test that Enable defaults to True for Docker services"""
         service_urls = {
-            "test-service": ["https://test.example.com"]
+            "test-service": ["http://test.example.com"]
         }
         overrides = {}
         
@@ -166,7 +166,7 @@ class TestBuildAppList:
     def test_build_app_list_hide_behavior(self):
         """Test that Hide=true removes app from list"""
         service_urls = {
-            "test-service": ["https://test.example.com"]
+            "test-service": ["http://test.example.com"]
         }
         overrides = {
             "test-service": {"Hide": True}
@@ -179,7 +179,7 @@ class TestBuildAppList:
     def test_build_app_list_disable_behavior(self):
         """Test that Enable=false removes app from list"""
         service_urls = {
-            "test-service": ["https://test.example.com"]
+            "test-service": ["http://test.example.com"]
         }
         overrides = {
             "test-service": {"Enable": False}
@@ -192,7 +192,7 @@ class TestBuildAppList:
     def test_build_app_list_override_metadata(self):
         """Test that overrides can customize app metadata"""
         service_urls = {
-            "test-service": ["https://test.example.com"]
+            "test-service": ["http://test.example.com"]
         }
         overrides = {
             "test-service": {
@@ -273,8 +273,8 @@ class TestBuildAppList:
         """Test that primary_url is set to first URL"""
         service_urls = {
             "test-service": [
-                "https://test1.example.com",
-                "https://test2.example.com"
+                "http://test1.example.com",
+                "http://test2.example.com"
             ]
         }
         overrides = {}
@@ -283,7 +283,7 @@ class TestBuildAppList:
         
         assert len(apps) == 1
         app = apps[0]
-        assert app["primary_url"] == "https://test1.example.com"
+        assert app["primary_url"] == "http://test1.example.com"
 
 
 class TestLoadOverrides:

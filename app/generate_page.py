@@ -70,6 +70,11 @@ def build_service_url_map(docker_client: docker.DockerClient) -> Dict[str, List[
     for container in containers:
         labels = container.labels
         
+        # Skip the traefik-home container itself
+        service_name = labels.get("com.docker.compose.service", container.name)
+        if service_name == "traefik-home":
+            continue
+        
         # Find all Traefik HTTP routers
         for key, value in labels.items():
             if key.startswith("traefik.http.routers.") and key.endswith(".rule"):
@@ -82,11 +87,16 @@ def build_service_url_map(docker_client: docker.DockerClient) -> Dict[str, List[
                     if "redirect" in router_name.lower():
                         continue
                     
-                    # Parse Host() or HostRegexp() rules
-                    urls = parse_traefik_rule(value)
+                    # Determine protocol from entrypoint or assume http
+                    protocol = "http"
+                    entrypoint_key = f"traefik.http.routers.{router_name}.entrypoints"
+                    if entrypoint_key in labels:
+                        entrypoints = labels[entrypoint_key].lower()
+                        if "websecure" in entrypoints or "https" in entrypoints:
+                            protocol = "https"
                     
-                    # Get service name from compose project and service
-                    service_name = labels.get("com.docker.compose.service", container.name)
+                    # Parse Host() or HostRegexp() rules
+                    urls = parse_traefik_rule(value, protocol=protocol)
                     
                     if urls and service_name:
                         if service_name not in service_urls:
@@ -106,15 +116,16 @@ def build_service_url_map(docker_client: docker.DockerClient) -> Dict[str, List[
     return service_urls
 
 
-def parse_traefik_rule(rule: str) -> List[str]:
+def parse_traefik_rule(rule: str, protocol: str = "http") -> List[str]:
     """
     Parse Traefik rule to extract hostnames.
     
     Args:
         rule: Traefik rule string (e.g., "Host(`example.com`) || Host(`www.example.com`)")
+        protocol: Protocol to use (http or https)
         
     Returns:
-        List of URLs (with https:// prefix)
+        List of URLs with specified protocol
     """
     urls = []
     
@@ -131,8 +142,8 @@ def parse_traefik_rule(rule: str) -> List[str]:
             end = part.find(")", start)
             if end > start:
                 host = part[start:end].strip("`").strip("'").strip('"')
-                # Build full URL (assume HTTPS)
-                urls.append(f"https://{host}")
+                # Build full URL with specified protocol
+                urls.append(f"{protocol}://{host}")
         
         # Extract HostRegexp() patterns
         elif "HostRegexp(" in part:
@@ -142,7 +153,7 @@ def parse_traefik_rule(rule: str) -> List[str]:
                 host = part[start:end].strip("`").strip("'").strip('"')
                 # For regexp, take as-is but may need cleanup
                 host = host.replace("{", "").replace("}", "").split(",")[0].strip()
-                urls.append(f"https://{host}")
+                urls.append(f"{protocol}://{host}")
     
     return urls
 
