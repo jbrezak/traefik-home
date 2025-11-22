@@ -258,7 +258,6 @@ def build_app_list(
             "description": override.get("Description", ""),
             "category": override.get("Category", default_category),
             "badge": override.get("Badge", ""),
-            "primary_url": urls[0] if urls else "",  # First URL as primary
         }
         apps.append(app)
     
@@ -270,41 +269,39 @@ def build_app_list(
         
         # Determine URLs for external app
         urls = []
-        if "url" in app_config:
-            # Manual URL specified
-            urls = [app_config["url"]]
-        elif "router" in app_config:
-            # Router name specified - lookup URLs from Traefik router configuration
-            router_name = app_config["router"]
-            if router_name in service_urls:
-                urls = service_urls[router_name]
-            else:
-                print(f"Warning: External app '{app_name}' references router '{router_name}' which was not found in Traefik config. Skipping.")
-                continue
+        
+        # First, try to find matching Traefik router automatically
+        # 1. Exact match
+        if app_name in service_urls:
+            urls = list(service_urls[app_name])
         else:
-            # Try to find matching router in service_urls using various naming patterns
-            # 1. Exact match
-            if app_name in service_urls:
-                urls = service_urls[app_name]
+            # 2. Try with @docker suffix (most common for Docker provider)
+            router_with_docker = f"{app_name}@docker"
+            if router_with_docker in service_urls:
+                urls = list(service_urls[router_with_docker])
             else:
-                # 2. Try with @docker suffix (most common)
-                router_with_suffix = f"{app_name}@docker"
-                if router_with_suffix in service_urls:
-                    urls = service_urls[router_with_suffix]
+                # 3. Try with @file suffix (common for file provider)
+                router_with_file = f"{app_name}@file"
+                if router_with_file in service_urls:
+                    urls = list(service_urls[router_with_file])
                 else:
-                    # 3. Try case-insensitive match in router names
+                    # 4. Try case-insensitive match in router names
                     app_name_lower = app_name.lower()
                     for router_name in service_urls:
                         # Extract router name without provider suffix
                         base_router = router_name.split('@')[0].lower()
                         if base_router == app_name_lower:
-                            urls = service_urls[router_name]
+                            urls = list(service_urls[router_name])
                             print(f"Info: External app '{app_name}' matched Traefik router '{router_name}'")
                             break
         
-        # Skip if no URLs found
+        # Add any manually specified URLs from .url labels (these are additive)
+        if "urls" in app_config:
+            urls.extend(app_config["urls"])
+        
+        # Skip if no URLs found anywhere
         if not urls:
-            print(f"Warning: External app '{app_name}' has no .url or .router label and no matching Traefik router found. Skipping.")
+            print(f"Warning: External app '{app_name}' has no matching Traefik router and no .url labels. Skipping.")
             continue
         
         # Determine category
@@ -318,7 +315,6 @@ def build_app_list(
             "description": app_config.get("description", ""),
             "category": app_config.get("category", default_category),
             "badge": "",
-            "primary_url": urls[0],
         }
         apps.append(app)
     
@@ -350,7 +346,6 @@ def build_app_list(
                 "description": override.get("Description", ""),
                 "category": override.get("Category", "Apps"),
                 "badge": override.get("Badge", ""),
-                "primary_url": urls[0],
             }
             apps.append(app)
     
@@ -398,9 +393,10 @@ def get_external_apps_from_labels(docker_client: docker.DockerClient) -> Dict[st
                             elif attribute == "icon":
                                 external_apps[app_name]["icon"] = value
                             elif attribute == "url":
-                                external_apps[app_name]["url"] = value
-                            elif attribute == "router":
-                                external_apps[app_name]["router"] = value
+                                # Support multiple .url labels - store as list
+                                if "urls" not in external_apps[app_name]:
+                                    external_apps[app_name]["urls"] = []
+                                external_apps[app_name]["urls"].append(value)
                             elif attribute == "admin":
                                 external_apps[app_name]["is_admin"] = value.lower() == "true"
                             elif attribute == "category":
@@ -833,7 +829,8 @@ def main():
     # Debug output: print all apps found
     print("\n=== Apps List ===")
     for app in apps:
-        print(f"  - {app['name']}: {app['primary_url']} (icon: {'yes' if app['icon'] else 'no'}, category: {app['category']})")
+        first_url = app['urls'][0] if app['urls'] else 'no URL'
+        print(f"  - {app['name']}: {first_url} (icon: {'yes' if app['icon'] else 'no'}, category: {app['category']})")
     print("=================\n")
     
     # Create apps.json with generation timestamp and config
