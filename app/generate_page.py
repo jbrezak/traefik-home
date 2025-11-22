@@ -268,8 +268,43 @@ def build_app_list(
         if not app_config.get("enabled", False):
             continue
         
-        # Skip if no URL
-        if "url" not in app_config:
+        # Determine URLs for external app
+        urls = []
+        if "url" in app_config:
+            # Manual URL specified
+            urls = [app_config["url"]]
+        elif "router" in app_config:
+            # Router name specified - lookup URLs from Traefik router configuration
+            router_name = app_config["router"]
+            if router_name in service_urls:
+                urls = service_urls[router_name]
+            else:
+                print(f"Warning: External app '{app_name}' references router '{router_name}' which was not found in Traefik config. Skipping.")
+                continue
+        else:
+            # Try to find matching router in service_urls using various naming patterns
+            # 1. Exact match
+            if app_name in service_urls:
+                urls = service_urls[app_name]
+            else:
+                # 2. Try with @docker suffix (most common)
+                router_with_suffix = f"{app_name}@docker"
+                if router_with_suffix in service_urls:
+                    urls = service_urls[router_with_suffix]
+                else:
+                    # 3. Try case-insensitive match in router names
+                    app_name_lower = app_name.lower()
+                    for router_name in service_urls:
+                        # Extract router name without provider suffix
+                        base_router = router_name.split('@')[0].lower()
+                        if base_router == app_name_lower:
+                            urls = service_urls[router_name]
+                            print(f"Info: External app '{app_name}' matched Traefik router '{router_name}'")
+                            break
+        
+        # Skip if no URLs found
+        if not urls:
+            print(f"Warning: External app '{app_name}' has no .url or .router label and no matching Traefik router found. Skipping.")
             continue
         
         # Determine category
@@ -278,12 +313,12 @@ def build_app_list(
         
         app = {
             "name": app_config.get("alias", app_name.replace("-", " ").title()),
-            "urls": [app_config["url"]],
+            "urls": urls,
             "icon": app_config.get("icon", ""),
             "description": app_config.get("description", ""),
             "category": app_config.get("category", default_category),
             "badge": "",
-            "primary_url": app_config["url"],
+            "primary_url": urls[0],
         }
         apps.append(app)
     
@@ -364,6 +399,8 @@ def get_external_apps_from_labels(docker_client: docker.DockerClient) -> Dict[st
                                 external_apps[app_name]["icon"] = value
                             elif attribute == "url":
                                 external_apps[app_name]["url"] = value
+                            elif attribute == "router":
+                                external_apps[app_name]["router"] = value
                             elif attribute == "admin":
                                 external_apps[app_name]["is_admin"] = value.lower() == "true"
                             elif attribute == "category":
