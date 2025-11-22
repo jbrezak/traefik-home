@@ -290,6 +290,184 @@ class TestBuildAppList:
         assert app["primary_url"] == "http://test1.example.com"
 
 
+class TestExternalApps:
+    """Tests for external app discovery and integration"""
+    
+    def test_get_external_apps_from_labels(self):
+        """Test parsing external app labels from traefik-home container"""
+        # Mock Docker client
+        mock_client = Mock()
+        mock_container = Mock()
+        mock_container.labels = {
+            "traefik-home.app.router.enable": "true",
+            "traefik-home.app.router.alias": "Home Router",
+            "traefik-home.app.router.url": "http://192.168.1.1",
+            "traefik-home.app.router.icon": "/icons/router.png",
+            "traefik-home.app.router.category": "Network",
+            "traefik-home.app.router.description": "Local network router",
+            "traefik-home.app.nas.enable": "true",
+            "traefik-home.app.nas.alias": "NAS Storage",
+            "traefik-home.app.nas.url": "http://nas.local",
+            "traefik-home.app.nas.admin": "true",
+            "traefik-home.app.disabled-app.enable": "false",
+            "traefik-home.app.disabled-app.url": "http://disabled.local"
+        }
+        
+        # Mock environment variable
+        with patch.dict(os.environ, {"HOSTNAME": "test-container-id"}):
+            mock_client.containers.get.return_value = mock_container
+            
+            result = generate_page.get_external_apps_from_labels(mock_client)
+        
+        # Should have 3 apps parsed (router, nas, disabled-app)
+        assert len(result) == 3
+        
+        # Check router app
+        assert "router" in result
+        assert result["router"]["enabled"] == True
+        assert result["router"]["alias"] == "Home Router"
+        assert result["router"]["url"] == "http://192.168.1.1"
+        assert result["router"]["icon"] == "/icons/router.png"
+        assert result["router"]["category"] == "Network"
+        assert result["router"]["description"] == "Local network router"
+        
+        # Check NAS app (admin)
+        assert "nas" in result
+        assert result["nas"]["enabled"] == True
+        assert result["nas"]["alias"] == "NAS Storage"
+        assert result["nas"]["url"] == "http://nas.local"
+        assert result["nas"]["is_admin"] == True
+        
+        # Check disabled app
+        assert "disabled-app" in result
+        assert result["disabled-app"]["enabled"] == False
+    
+    def test_docker_and_external_apps_integration(self):
+        """
+        Test complete integration: Docker app + External app with all labels.
+        
+        Scenario:
+        1. Docker container with traefik labels (discovered service)
+        2. External app via traefik-home.app.<name> labels (manual entry)
+        3. Result should be 2 apps with all label data present
+        """
+        # 1. Docker app with container labels
+        service_urls = {
+            "whoami": ["http://whoami.example.com", "http://whoami.local"]
+        }
+        service_metadata = {
+            "whoami": {
+                "alias": "Who Am I",
+                "icon": "/icons/whoami.png",
+                "is_admin": False
+            }
+        }
+        
+        # 2. External app via traefik-home.app.<name> labels
+        external_apps = {
+            "router": {
+                "enabled": True,
+                "alias": "Home Router",
+                "url": "http://192.168.1.1",
+                "icon": "/icons/router.png",
+                "category": "Network",
+                "description": "Local network router",
+                "is_admin": False
+            },
+            "nas": {
+                "enabled": True,
+                "alias": "NAS Storage",
+                "url": "http://nas.local",
+                "icon": "/icons/nas.png",
+                "is_admin": True,
+                "description": "Network attached storage"
+            }
+        }
+        
+        overrides = {}
+        
+        # 3. Build app list with both Docker and external apps
+        apps = generate_page.build_app_list(
+            service_urls,
+            service_metadata,
+            overrides,
+            external_apps
+        )
+        
+        # Should have 3 apps total: 1 Docker + 2 external
+        assert len(apps) == 3, f"Expected 3 apps, got {len(apps)}: {[app['name'] for app in apps]}"
+        
+        # Find and verify whoami (Docker app)
+        whoami_app = next((app for app in apps if "who am i" in app["name"].lower()), None)
+        assert whoami_app is not None, f"whoami app not found in: {[app['name'] for app in apps]}"
+        assert whoami_app["name"] == "Who Am I"
+        assert len(whoami_app["urls"]) == 2
+        assert "http://whoami.example.com" in whoami_app["urls"]
+        assert "http://whoami.local" in whoami_app["urls"]
+        assert whoami_app["icon"] == "/icons/whoami.png"
+        assert whoami_app["category"] == "Apps"
+        assert whoami_app["primary_url"] == "http://whoami.example.com"
+        
+        # Find and verify router (external app)
+        router_app = next((app for app in apps if "Router" in app["name"]), None)
+        assert router_app is not None
+        assert router_app["name"] == "Home Router"
+        assert router_app["urls"] == ["http://192.168.1.1"]
+        assert router_app["icon"] == "/icons/router.png"
+        assert router_app["category"] == "Network"
+        assert router_app["description"] == "Local network router"
+        assert router_app["primary_url"] == "http://192.168.1.1"
+        
+        # Find and verify NAS (external admin app)
+        nas_app = next((app for app in apps if "NAS" in app["name"]), None)
+        assert nas_app is not None
+        assert nas_app["name"] == "NAS Storage"
+        assert nas_app["urls"] == ["http://nas.local"]
+        assert nas_app["icon"] == "/icons/nas.png"
+        assert nas_app["category"] == "Admin"  # Should be Admin category
+        assert nas_app["description"] == "Network attached storage"
+        assert nas_app["primary_url"] == "http://nas.local"
+    
+    def test_external_app_disabled_not_in_list(self):
+        """Test that disabled external apps don't appear in the final list"""
+        external_apps = {
+            "enabled-app": {
+                "enabled": True,
+                "url": "http://enabled.local"
+            },
+            "disabled-app": {
+                "enabled": False,
+                "url": "http://disabled.local"
+            }
+        }
+        
+        apps = generate_page.build_app_list({}, {}, {}, external_apps)
+        
+        # Should only have 1 app (enabled-app)
+        assert len(apps) == 1
+        assert apps[0]["urls"] == ["http://enabled.local"]
+    
+    def test_external_app_without_url_not_in_list(self):
+        """Test that external apps without URL don't appear in the final list"""
+        external_apps = {
+            "no-url-app": {
+                "enabled": True,
+                "alias": "No URL App"
+                # Missing url field
+            },
+            "with-url-app": {
+                "enabled": True,
+                "url": "http://valid.local"
+            }
+        }
+        
+        apps = generate_page.build_app_list({}, {}, {}, external_apps)
+        
+        # Should only have 1 app (with-url-app)
+        assert len(apps) == 1
+        assert apps[0]["urls"] == ["http://valid.local"]
+
+
 class TestLoadOverrides:
     """Tests for load_overrides function"""
     
