@@ -267,37 +267,29 @@ def build_app_list(
         if not app_config.get("enabled", False):
             continue
         
-        # Determine URLs for external app
-        urls = []
+        # Determine URLs for external app using flexible matching heuristics
+        urls = set()
         
-        # First, try to find matching Traefik router automatically
-        # 1. Exact match
-        if app_name in service_urls:
-            urls = list(service_urls[app_name])
-        else:
-            # 2. Try with @docker suffix (most common for Docker provider)
-            router_with_docker = f"{app_name}@docker"
-            if router_with_docker in service_urls:
-                urls = list(service_urls[router_with_docker])
-            else:
-                # 3. Try with @file suffix (common for file provider)
-                router_with_file = f"{app_name}@file"
-                if router_with_file in service_urls:
-                    urls = list(service_urls[router_with_file])
-                else:
-                    # 4. Try case-insensitive match in router names
-                    app_name_lower = app_name.lower()
-                    for router_name in service_urls:
-                        # Extract router name without provider suffix
-                        base_router = router_name.split('@')[0].lower()
-                        if base_router == app_name_lower:
-                            urls = list(service_urls[router_name])
-                            print(f"Info: External app '{app_name}' matched Traefik router '{router_name}'")
-                            break
+        # Try to find matching Traefik router(s) using multiple patterns
+        for svc_key, url_list in service_urls.items():
+            if not svc_key:
+                continue
+            # Flexible matching: exact match, containment in either direction, or hyphenated variants
+            if (app_name == svc_key or 
+                app_name in svc_key or 
+                svc_key in app_name or 
+                svc_key.startswith(app_name + "-") or 
+                app_name.startswith(svc_key + "-")):
+                urls.update(url_list)
+                print(f"Info: External app '{app_name}' matched Traefik service '{svc_key}'")
+        
+        # Convert to sorted list
+        urls = sorted(list(urls))
         
         # Add any manually specified URLs from .url labels (these are additive)
         if "urls" in app_config:
             urls.extend(app_config["urls"])
+            urls = sorted(list(set(urls)))  # Remove duplicates and sort
         
         # Skip if no URLs found anywhere
         if not urls:
