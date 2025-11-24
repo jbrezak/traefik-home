@@ -124,9 +124,17 @@ def build_service_url_map(docker_client: docker.DockerClient) -> tuple[Dict[str,
                     urls = parse_traefik_rule(value, protocol=protocol)
                     
                     if urls and service_name:
+                        # Store under service name
                         if service_name not in service_urls:
                             service_urls[service_name] = []
                         service_urls[service_name].extend(urls)
+                        
+                        # Also store under router name for external app matching
+                        # (e.g., "omv@docker" if service is "omv")
+                        router_key = f"{router_name}@docker"
+                        if router_key not in service_urls:
+                            service_urls[router_key] = []
+                        service_urls[router_key].extend(urls)
     
     # Remove duplicates while preserving order
     for service_name in service_urls:
@@ -229,6 +237,10 @@ def build_app_list(
     
     # Process services from Docker
     for service_name, urls in service_urls.items():
+        # Skip router keys (these are just for external app matching)
+        if service_name.endswith("@docker") or service_name.endswith("@file"):
+            continue
+        
         override = overrides.get(service_name, {})
         metadata = service_metadata.get(service_name, {})
         

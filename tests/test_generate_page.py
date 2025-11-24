@@ -273,8 +273,8 @@ class TestBuildAppList:
         assert "https://external1.example.com" in app["urls"]
         assert "https://external2.example.com" in app["urls"]
     
-    def test_build_app_list_primary_url_is_first(self):
-        """Test that primary_url is set to first URL"""
+    def test_build_app_list_urls_list_contains_all(self):
+        """Test that urls list contains all URLs (no primary_url field, browser selects)"""
         service_urls = {
             "test-service": [
                 "http://test1.example.com",
@@ -287,7 +287,12 @@ class TestBuildAppList:
         
         assert len(apps) == 1
         app = apps[0]
-        assert app["primary_url"] == "http://test1.example.com"
+        assert "urls" in app
+        assert len(app["urls"]) == 2
+        assert "http://test1.example.com" in app["urls"]
+        assert "http://test2.example.com" in app["urls"]
+        # Verify primary_url is NOT in the app (browser determines it)
+        assert "primary_url" not in app
 
 
 class TestExternalApps:
@@ -326,7 +331,7 @@ class TestExternalApps:
         assert "router" in result
         assert result["router"]["enabled"] == True
         assert result["router"]["alias"] == "Home Router"
-        assert result["router"]["url"] == "http://192.168.1.1"
+        assert result["router"]["urls"] == ["http://192.168.1.1"]
         assert result["router"]["icon"] == "/icons/router.png"
         assert result["router"]["category"] == "Network"
         assert result["router"]["description"] == "Local network router"
@@ -335,7 +340,7 @@ class TestExternalApps:
         assert "nas" in result
         assert result["nas"]["enabled"] == True
         assert result["nas"]["alias"] == "NAS Storage"
-        assert result["nas"]["url"] == "http://nas.local"
+        assert result["nas"]["urls"] == ["http://nas.local"]
         assert result["nas"]["is_admin"] == True
         
         # Check disabled app
@@ -368,7 +373,7 @@ class TestExternalApps:
             "router": {
                 "enabled": True,
                 "alias": "Home Router",
-                "url": "http://192.168.1.1",
+                "urls": ["http://192.168.1.1"],
                 "icon": "/icons/router.png",
                 "category": "Network",
                 "description": "Local network router",
@@ -377,7 +382,7 @@ class TestExternalApps:
             "nas": {
                 "enabled": True,
                 "alias": "NAS Storage",
-                "url": "http://nas.local",
+                "urls": ["http://nas.local"],
                 "icon": "/icons/nas.png",
                 "is_admin": True,
                 "description": "Network attached storage"
@@ -406,7 +411,6 @@ class TestExternalApps:
         assert "http://whoami.local" in whoami_app["urls"]
         assert whoami_app["icon"] == "/icons/whoami.png"
         assert whoami_app["category"] == "Apps"
-        assert whoami_app["primary_url"] == "http://whoami.example.com"
         
         # Find and verify router (external app)
         router_app = next((app for app in apps if "Router" in app["name"]), None)
@@ -416,7 +420,6 @@ class TestExternalApps:
         assert router_app["icon"] == "/icons/router.png"
         assert router_app["category"] == "Network"
         assert router_app["description"] == "Local network router"
-        assert router_app["primary_url"] == "http://192.168.1.1"
         
         # Find and verify NAS (external admin app)
         nas_app = next((app for app in apps if "NAS" in app["name"]), None)
@@ -426,18 +429,17 @@ class TestExternalApps:
         assert nas_app["icon"] == "/icons/nas.png"
         assert nas_app["category"] == "Admin"  # Should be Admin category
         assert nas_app["description"] == "Network attached storage"
-        assert nas_app["primary_url"] == "http://nas.local"
     
     def test_external_app_disabled_not_in_list(self):
         """Test that disabled external apps don't appear in the final list"""
         external_apps = {
             "enabled-app": {
                 "enabled": True,
-                "url": "http://enabled.local"
+                "urls": ["http://enabled.local"]
             },
             "disabled-app": {
                 "enabled": False,
-                "url": "http://disabled.local"
+                "urls": ["http://disabled.local"]
             }
         }
         
@@ -457,7 +459,7 @@ class TestExternalApps:
             },
             "with-url-app": {
                 "enabled": True,
-                "url": "http://valid.local"
+                "urls": ["http://valid.local"]
             }
         }
         
