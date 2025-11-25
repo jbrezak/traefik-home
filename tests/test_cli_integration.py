@@ -27,13 +27,15 @@ class TestCLIIntegration:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         
-        # Mock Docker client
+        # Mock Docker client with traefik-home labels
         mock_docker_client = Mock()
         mock_container = Mock()
         mock_container.name = "test-service"
         mock_container.labels = {
             "traefik.http.routers.test.rule": "Host(`test.example.com`)",
-            "com.docker.compose.service": "test-service"
+            "com.docker.compose.service": "test-service",
+            "traefik-home.enable": "true",  # Must have traefik-home labels to be included
+            "traefik-home.alias": "Test Service"
         }
         mock_docker_client.containers.list.return_value = [mock_container]
         
@@ -101,7 +103,7 @@ class TestCLIIntegration:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         
-        # Mock Docker client with service having multiple URLs
+        # Mock Docker client with service having multiple URLs and traefik-home labels
         mock_docker_client = Mock()
         mock_container = Mock()
         mock_container.name = "test-service"
@@ -109,7 +111,9 @@ class TestCLIIntegration:
             "traefik.http.routers.test1.rule": "Host(`test1.example.com`)",
             "traefik.http.routers.test2.rule": "Host(`test2.example.com`)",
             "traefik.http.routers.test3.rule": "Host(`test3.example.com`)",
-            "com.docker.compose.service": "test-service"
+            "com.docker.compose.service": "test-service",
+            "traefik-home.enable": "true",  # Must have traefik-home labels to be included
+            "traefik-home.alias": "Test Service"
         }
         mock_docker_client.containers.list.return_value = [mock_container]
         
@@ -181,13 +185,14 @@ class TestCLIIntegration:
         }
         overrides_file.write_text(json.dumps(overrides_data))
         
-        # Mock Docker client
+        # Mock Docker client with traefik-home labels
         mock_docker_client = Mock()
         mock_container = Mock()
         mock_container.name = "test-service"
         mock_container.labels = {
             "traefik.http.routers.test.rule": "Host(`test.example.com`)",
-            "com.docker.compose.service": "test-service"
+            "com.docker.compose.service": "test-service",
+            "traefik-home.enable": "true"  # Must have traefik-home labels to be included
         }
         mock_docker_client.containers.list.return_value = [mock_container]
         

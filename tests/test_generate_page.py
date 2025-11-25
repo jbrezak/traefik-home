@@ -145,9 +145,13 @@ class TestBuildAppList:
                 "http://test.local.com"
             ]
         }
+        # Service must have traefik-home metadata to be included
+        service_metadata = {
+            "test-service": {"icon": "", "alias": "", "hide": False, "is_admin": False}
+        }
         overrides = {}
         
-        apps = generate_page.build_app_list(service_urls, {}, overrides)
+        apps = generate_page.build_app_list(service_urls, service_metadata, overrides)
         
         assert len(apps) == 1
         app = apps[0]
@@ -157,13 +161,17 @@ class TestBuildAppList:
         assert "http://test.local.com" in app["urls"]
     
     def test_build_app_list_enable_defaulting(self):
-        """Test that Enable defaults to True for Docker services"""
+        """Test that Enable defaults to True for Docker services with traefik-home labels"""
         service_urls = {
             "test-service": ["http://test.example.com"]
         }
+        # Service must have traefik-home metadata to be included
+        service_metadata = {
+            "test-service": {"icon": "", "alias": "", "hide": False, "is_admin": False}
+        }
         overrides = {}
         
-        apps = generate_page.build_app_list(service_urls, {}, overrides)
+        apps = generate_page.build_app_list(service_urls, service_metadata, overrides)
         
         assert len(apps) == 1
     
@@ -172,11 +180,13 @@ class TestBuildAppList:
         service_urls = {
             "test-service": ["http://test.example.com"]
         }
-        overrides = {
-            "test-service": {"Hide": True}
+        # Service has traefik-home metadata with hide=True
+        service_metadata = {
+            "test-service": {"icon": "", "alias": "", "hide": True, "is_admin": False}
         }
+        overrides = {}
         
-        apps = generate_page.build_app_list(service_urls, {}, overrides)
+        apps = generate_page.build_app_list(service_urls, service_metadata, overrides)
         
         assert len(apps) == 0
     
@@ -185,11 +195,15 @@ class TestBuildAppList:
         service_urls = {
             "test-service": ["http://test.example.com"]
         }
+        # Service has traefik-home metadata
+        service_metadata = {
+            "test-service": {"icon": "", "alias": "", "hide": False, "is_admin": False}
+        }
         overrides = {
             "test-service": {"Enable": False}
         }
         
-        apps = generate_page.build_app_list(service_urls, {}, overrides)
+        apps = generate_page.build_app_list(service_urls, service_metadata, overrides)
         
         assert len(apps) == 0
     
@@ -197,6 +211,10 @@ class TestBuildAppList:
         """Test that overrides can customize app metadata"""
         service_urls = {
             "test-service": ["http://test.example.com"]
+        }
+        # Service must have traefik-home metadata to be included
+        service_metadata = {
+            "test-service": {"icon": "", "alias": "", "hide": False, "is_admin": False}
         }
         overrides = {
             "test-service": {
@@ -208,7 +226,7 @@ class TestBuildAppList:
             }
         }
         
-        apps = generate_page.build_app_list(service_urls, {}, overrides)
+        apps = generate_page.build_app_list(service_urls, service_metadata, overrides)
         
         assert len(apps) == 1
         app = apps[0]
@@ -281,9 +299,13 @@ class TestBuildAppList:
                 "http://test2.example.com"
             ]
         }
+        # Service must have traefik-home metadata to be included
+        service_metadata = {
+            "test-service": {"icon": "", "alias": "", "hide": False, "is_admin": False}
+        }
         overrides = {}
         
-        apps = generate_page.build_app_list(service_urls, {}, overrides)
+        apps = generate_page.build_app_list(service_urls, service_metadata, overrides)
         
         assert len(apps) == 1
         app = apps[0]
@@ -293,6 +315,24 @@ class TestBuildAppList:
         assert "http://test2.example.com" in app["urls"]
         # Verify primary_url is NOT in the app (browser determines it)
         assert "primary_url" not in app
+    
+    def test_build_app_list_no_traefik_home_labels_excluded(self):
+        """Test that services without traefik-home labels are NOT included"""
+        service_urls = {
+            "test-service": ["http://test.example.com"],
+            "no-labels-service": ["http://nolabels.example.com"]
+        }
+        # Only test-service has traefik-home metadata
+        service_metadata = {
+            "test-service": {"icon": "", "alias": "", "hide": False, "is_admin": False}
+        }
+        overrides = {}
+        
+        apps = generate_page.build_app_list(service_urls, service_metadata, overrides)
+        
+        # Only test-service should be included
+        assert len(apps) == 1
+        assert apps[0]["name"] == "Test Service"
 
 
 class TestExternalApps:

@@ -256,18 +256,24 @@ def build_service_url_map(docker_client: docker.DockerClient, traefik_api: Optio
             continue
         
         # Extract traefik-home specific metadata
+        # Check if container has ANY traefik-home labels
+        has_traefik_home_labels = any(k.startswith("traefik-home.") for k in labels.keys())
+        
         icon = labels.get("traefik-home.icon", "")
         alias = labels.get("traefik-home.alias", "")
         hide = labels.get("traefik-home.hide", "").lower() == "true"
         is_admin = labels.get("traefik-home.admin", "").lower() == "true"
+        enable = labels.get("traefik-home.enable", "").lower()
         
-        # Store metadata for this service
-        if service_name not in service_metadata:
+        # Only store metadata if the container has traefik-home labels
+        # This is used to determine which apps to include in the final list
+        if has_traefik_home_labels and service_name not in service_metadata:
             service_metadata[service_name] = {
                 "icon": icon,
                 "alias": alias,
                 "hide": hide,
-                "is_admin": is_admin
+                "is_admin": is_admin,
+                "enable": enable if enable else "true"  # Default to true if not specified
             }
         
         # Find all Traefik HTTP routers from Docker labels
@@ -391,6 +397,13 @@ def build_app_list(
     """
     Build final app list with all URLs and metadata.
     
+    Only includes apps that have:
+    1. traefik-home.* labels on their Docker container (service_metadata), OR
+    2. traefik-home.app.<name>.* labels on the traefik-home container (external_apps)
+    
+    Apps discovered from Traefik API are ONLY used for URL resolution, not for
+    automatic inclusion. They must be explicitly enabled via traefik-home labels.
+    
     Args:
         service_urls: Map of service names to URLs
         service_metadata: Map of service names to metadata from Docker labels
@@ -405,7 +418,8 @@ def build_app_list(
     
     apps = []
     
-    # Process services from Docker (skip external apps - they're processed separately)
+    # Process services from Docker that have traefik-home.* labels
+    # Only include services that have metadata (meaning they have traefik-home labels)
     for service_name, urls in service_urls.items():
         # Skip router keys (these are just for external app matching)
         if service_name.endswith("@docker") or service_name.endswith("@file"):
@@ -416,8 +430,14 @@ def build_app_list(
         if service_name in external_apps:
             continue
         
-        override = overrides.get(service_name, {})
+        # IMPORTANT: Only include services that have traefik-home metadata
+        # Services discovered from Traefik API without traefik-home labels are skipped
         metadata = service_metadata.get(service_name, {})
+        if not metadata:
+            # No traefik-home labels on this container, skip it
+            continue
+        
+        override = overrides.get(service_name, {})
         
         # Check if app should be hidden (from Docker label or override)
         if metadata.get("hide", False) or override.get("Hide", False):
