@@ -58,12 +58,174 @@ def atomic_write(filepath: str, content: str, mode: int = 0o644) -> None:
         raise
 
 
-def build_service_url_map(docker_client: docker.DockerClient) -> tuple[Dict[str, List[str]], Dict[str, Dict[str, Any]]]:
+def discover_traefik_api() -> Optional[str]:
     """
-    Build a map of service names to their URLs and metadata from Docker container labels.
+    Discover the Traefik API endpoint using multiple heuristics.
+    
+    Returns:
+        Traefik API base URL or None if not found
+    """
+    # Try environment variable first
+    env_url = os.getenv("TRAEFIK_API_URL")
+    if env_url:
+        if test_traefik_endpoint(env_url):
+            print(f"Using Traefik API from env: {env_url}")
+            return env_url.rstrip("/")
+    
+    # Try common container DNS names
+    for host in ["traefik", "traefik-proxy", "reverse-proxy"]:
+        for port in [8080, 8081]:
+            candidate = f"http://{host}:{port}"
+            if test_traefik_endpoint(candidate):
+                print(f"Discovered Traefik API at: {candidate}")
+                return candidate
+    
+    # Try localhost
+    for port in [8080, 8081]:
+        candidate = f"http://localhost:{port}"
+        if test_traefik_endpoint(candidate):
+            print(f"Discovered Traefik API at: {candidate}")
+            return candidate
+    
+    return None
+
+
+def test_traefik_endpoint(base_url: str, timeout: float = 2.0) -> bool:
+    """Test if a Traefik API endpoint is accessible."""
+    if not base_url:
+        return False
+    base_url = base_url.rstrip("/")
+    try:
+        resp = requests.get(f"{base_url}/api/http/routers", timeout=timeout)
+        return resp.status_code == 200
+    except Exception:
+        pass
+    try:
+        resp = requests.get(f"{base_url}/api/routers", timeout=timeout)
+        return resp.status_code == 200
+    except Exception:
+        pass
+    return False
+
+
+def fetch_traefik_routers(traefik_api: Optional[str]) -> Dict[str, List[str]]:
+    """
+    Fetch routers from Traefik API and build URL map.
+    
+    This discovers routers from file provider, kubernetes, consul, etc.
+    that are not visible via Docker container labels.
+    
+    Args:
+        traefik_api: Traefik API base URL
+        
+    Returns:
+        Dictionary mapping service/router names to URLs
+    """
+    service_urls = {}
+    
+    if not traefik_api:
+        return service_urls
+    
+    routers = None
+    try:
+        resp = requests.get(f"{traefik_api.rstrip('/')}/api/http/routers", timeout=5)
+        resp.raise_for_status()
+        routers = resp.json()
+    except Exception as e:
+        print(f"Warning: Could not fetch Traefik routers: {e}", file=sys.stderr)
+        try:
+            resp = requests.get(f"{traefik_api.rstrip('/')}/api/routers", timeout=5)
+            resp.raise_for_status()
+            routers = resp.json()
+        except Exception as e2:
+            print(f"Warning: Fallback routers endpoint also failed: {e2}", file=sys.stderr)
+            return service_urls
+    
+    if not routers:
+        return service_urls
+    
+    # Handle both list and dict response formats
+    router_items = []
+    if isinstance(routers, dict):
+        router_items = list(routers.items())
+    elif isinstance(routers, list):
+        for item in routers:
+            if not isinstance(item, dict):
+                continue
+            rname = item.get("name") or item.get("router") or ""
+            router_items.append((rname, item))
+    
+    for rname, rdata in router_items:
+        try:
+            if not isinstance(rdata, dict):
+                continue
+            
+            # Get entrypoints and rule
+            entrypoints = rdata.get("entryPoints") or rdata.get("entrypoints") or []
+            rule = rdata.get("rule") or rdata.get("Rule") or ""
+            service = rdata.get("service") or rdata.get("Service") or ""
+            
+            if not rule:
+                continue
+            
+            # Determine protocol from entrypoints
+            protocol = "http"
+            if entrypoints:
+                for ep in entrypoints:
+                    ep_lower = str(ep).lower()
+                    if "secure" in ep_lower or "https" in ep_lower or "websecure" in ep_lower:
+                        protocol = "https"
+                        break
+            
+            # Parse Host() rules to get URLs
+            urls = parse_traefik_rule(rule, protocol=protocol)
+            
+            if not urls:
+                continue
+            
+            # Get service name without provider suffix
+            svc_norm = service.split("@")[0] if isinstance(service, str) else str(service)
+            
+            # Skip internal router artifacts
+            if svc_norm.lower() == "router" or (isinstance(rname, str) and rname.lower() == "router"):
+                continue
+            
+            # Store under service name
+            if svc_norm:
+                if svc_norm not in service_urls:
+                    service_urls[svc_norm] = []
+                service_urls[svc_norm].extend(urls)
+            
+            # Also store under full router name (e.g., "omv@file")
+            if rname:
+                if rname not in service_urls:
+                    service_urls[rname] = []
+                service_urls[rname].extend(urls)
+                
+                # Store under router base name as well (e.g., "omv" from "omv@file")
+                rname_base = rname.split("@")[0] if "@" in rname else rname
+                if rname_base and rname_base != svc_norm:
+                    if rname_base not in service_urls:
+                        service_urls[rname_base] = []
+                    service_urls[rname_base].extend(urls)
+        except Exception as e:
+            print(f"Warning: Error parsing router {rname}: {e}", file=sys.stderr)
+    
+    # Remove duplicates
+    for key in service_urls:
+        service_urls[key] = list(dict.fromkeys(service_urls[key]))
+    
+    return service_urls
+
+
+def build_service_url_map(docker_client: docker.DockerClient, traefik_api: Optional[str] = None) -> tuple[Dict[str, List[str]], Dict[str, Dict[str, Any]]]:
+    """
+    Build a map of service names to their URLs and metadata from Docker container labels
+    AND from Traefik API (for file provider, kubernetes, etc.).
     
     Args:
         docker_client: Docker client instance
+        traefik_api: Optional Traefik API base URL
         
     Returns:
         Tuple of (service_urls dict, service_metadata dict)
@@ -71,6 +233,14 @@ def build_service_url_map(docker_client: docker.DockerClient) -> tuple[Dict[str,
     service_urls = {}
     service_metadata = {}
     
+    # First, fetch routers from Traefik API (includes file provider, etc.)
+    if traefik_api:
+        print(f"Fetching routers from Traefik API: {traefik_api}")
+        traefik_urls = fetch_traefik_routers(traefik_api)
+        print(f"Found {len(traefik_urls)} services from Traefik API")
+        service_urls.update(traefik_urls)
+    
+    # Then, get additional info from Docker containers
     try:
         containers = docker_client.containers.list()
     except Exception as e:
@@ -100,7 +270,7 @@ def build_service_url_map(docker_client: docker.DockerClient) -> tuple[Dict[str,
                 "is_admin": is_admin
             }
         
-        # Find all Traefik HTTP routers
+        # Find all Traefik HTTP routers from Docker labels
         for key, value in labels.items():
             if key.startswith("traefik.http.routers.") and key.endswith(".rule"):
                 # Extract router name
@@ -235,10 +405,15 @@ def build_app_list(
     
     apps = []
     
-    # Process services from Docker
+    # Process services from Docker (skip external apps - they're processed separately)
     for service_name, urls in service_urls.items():
         # Skip router keys (these are just for external app matching)
         if service_name.endswith("@docker") or service_name.endswith("@file"):
+            continue
+        
+        # Skip if this service name is defined as an external app
+        # (external apps are processed in the next loop with their full config)
+        if service_name in external_apps:
             continue
         
         override = overrides.get(service_name, {})
@@ -794,6 +969,11 @@ def main():
         default="/app/templates/home-client.tmpl",
         help="Path to client HTML template (default: /app/templates/home-client.tmpl)"
     )
+    parser.add_argument(
+        "--traefik-api",
+        default=None,
+        help="Traefik API URL (default: auto-discover or TRAEFIK_API_URL env)"
+    )
     args = parser.parse_args()
     
     # Ensure output directory exists
@@ -806,9 +986,16 @@ def main():
         print(f"Error: Could not connect to Docker: {e}", file=sys.stderr)
         sys.exit(1)
     
-    # Build service URL map
-    print("Building service URL map from Docker...")
-    service_urls, service_metadata = build_service_url_map(docker_client)
+    # Discover Traefik API endpoint
+    traefik_api = args.traefik_api or discover_traefik_api()
+    if traefik_api:
+        print(f"Using Traefik API: {traefik_api}")
+    else:
+        print("Warning: Could not discover Traefik API - external apps from file provider may not be found")
+    
+    # Build service URL map (from Docker labels AND Traefik API)
+    print("Building service URL map from Docker and Traefik API...")
+    service_urls, service_metadata = build_service_url_map(docker_client, traefik_api)
     print(f"Found {len(service_urls)} services")
     
     # Get external apps from traefik-home container labels

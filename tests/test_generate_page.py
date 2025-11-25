@@ -470,6 +470,111 @@ class TestExternalApps:
         assert apps[0]["urls"] == ["http://valid.local"]
 
 
+class TestTraefikAPIDiscovery:
+    """Tests for Traefik API router discovery"""
+    
+    def test_fetch_traefik_routers_list_format(self):
+        """Test fetching routers from Traefik API (list format)"""
+        # Mock requests module
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = Mock()
+        mock_response.json.return_value = [
+            {
+                "name": "omv@file",
+                "entryPoints": ["web"],
+                "rule": "Host(`omv.locker.local`)",
+                "service": "omv",
+                "status": "enabled"
+            },
+            {
+                "name": "rclone@file",
+                "entryPoints": ["websecure"],
+                "rule": "Host(`rclone.example.com`) || Host(`rclone.locker.local`)",
+                "service": "rclone",
+                "status": "enabled"
+            }
+        ]
+        
+        with patch.object(generate_page.requests, 'get', return_value=mock_response):
+            result = generate_page.fetch_traefik_routers("http://traefik:8080")
+        
+        # Should have URLs for both routers
+        assert "omv" in result
+        assert "http://omv.locker.local" in result["omv"]
+        
+        assert "rclone" in result
+        # rclone uses websecure, should be https
+        assert "https://rclone.example.com" in result["rclone"]
+        assert "https://rclone.locker.local" in result["rclone"]
+    
+    def test_fetch_traefik_routers_stores_under_multiple_keys(self):
+        """Test that routers are stored under service name, router name, and base name"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = Mock()
+        mock_response.json.return_value = [
+            {
+                "name": "traefik-ui@file",
+                "entryPoints": ["web"],
+                "rule": "Host(`traefik.locker.local`)",
+                "service": "api@internal",
+                "status": "enabled"
+            }
+        ]
+        
+        with patch.object(generate_page.requests, 'get', return_value=mock_response):
+            result = generate_page.fetch_traefik_routers("http://traefik:8080")
+        
+        # Should be stored under full router name and base name
+        assert "traefik-ui@file" in result
+        assert "traefik-ui" in result
+        assert "http://traefik.locker.local" in result["traefik-ui"]
+    
+    def test_external_app_matches_traefik_api_router(self):
+        """Test that external apps can match routers from Traefik API"""
+        # Service URLs discovered from Traefik API (simulates file provider)
+        service_urls = {
+            "omv": ["http://omv.locker.local"],
+            "omv@file": ["http://omv.locker.local"],
+            "rclone": ["https://rclone.locker.local"],
+            "rclone@file": ["https://rclone.locker.local"]
+        }
+        
+        # External apps defined on traefik-home container
+        external_apps = {
+            "omv": {
+                "enabled": True,
+                "alias": "OpenMediaVault NAS",
+                "icon": "https://www.openmediavault.org/favicon.ico",
+                "is_admin": True,
+                "category": "Admin"  # Explicit category
+            },
+            "rclone": {
+                "enabled": True,
+                "alias": "Rclone WebUI",
+                "icon": "https://rclone.org/favicon.ico",
+                "is_admin": True,
+                "category": "Admin"  # Explicit category
+            }
+        }
+        
+        apps = generate_page.build_app_list(service_urls, {}, {}, external_apps)
+        
+        # Should find both external apps with URLs from Traefik API
+        assert len(apps) >= 2
+        
+        omv_app = next((app for app in apps if "OpenMediaVault" in app["name"]), None)
+        assert omv_app is not None
+        assert "http://omv.locker.local" in omv_app["urls"]
+        assert omv_app["category"] == "Admin"
+        
+        rclone_app = next((app for app in apps if "Rclone" in app["name"]), None)
+        assert rclone_app is not None
+        assert "https://rclone.locker.local" in rclone_app["urls"]
+        assert rclone_app["category"] == "Admin"
+
+
 class TestLoadOverrides:
     """Tests for load_overrides function"""
     
