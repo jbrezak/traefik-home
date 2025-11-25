@@ -14,9 +14,6 @@ services:
       - /home/traefik-home/custom.css:/usr/share/nginx/html/custom.css
       - /home/authentik/logonWallpaper.gif://usr/share/nginx/html/background.gif
       
-      # Mount Traefik dynamic config for external apps
-      - /home/traefik/dynamic:/etc/traefik/dynamic:ro
-      
     environment:
       # Custom CSS file
       - CUSTOM_CSS_URL=/custom.css
@@ -29,9 +26,6 @@ services:
       
       # Authentik logout URL
       - AUTHENTIK_LOGOUT_URL=http://auth.locker.local/flows/-/default/invalidation/
-      
-      # Path to Traefik dynamic config file
-      - TRAEFIK_DYNAMIC_CONFIG=/etc/traefik/dynamic/rules.yml
       
       # Display options
       - SHOW_FOOTER=true

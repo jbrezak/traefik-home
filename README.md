@@ -60,40 +60,33 @@ It uses [docker-gen](https://github.com/jwilder/docker-gen) to monitor Docker co
 - Traefik v2 or v3 configured with Docker
 - Authentik (optional, for authentication features)
 - Docker and Docker Compose
-- (Optional) Traefik dynamic configuration for external apps
+- Python 3.11+ (for local development/testing)
 
 ### Installation
 
-1. **Clone or create your setup directory:**
+1. **Clone the repository:**
 ```bash
-mkdir -p traefik-home/app traefik-home/sample
+git clone https://github.com/jbrezak/traefik-home.git
 cd traefik-home
 ```
 
-2. **Create required files:**
-   - `docker-compose.yml`
-   - `Dockerfile`
-   - `app/docker-entrypoint.sh`
-   - `app/parse-external-apps.sh`
-   - `app/home.tmpl`
-   - `sample/custom.css` (optional - for reference)
-   - `sample/rules.yml` (optional - for external apps)
-
-3. **Make scripts executable:**
-```bash
-chmod +x app/docker-entrypoint.sh app/parse-external-apps.sh
-```
-
-4. **Configure your environment:**
-   - Update domains in `docker-compose.yml`
-   - Set your Authentik logout URL
-   - (Optional) Copy and customize `sample/custom.css` then mount it
-
-5. **Build and deploy:**
+2. **Build and deploy:**
 ```bash
 docker-compose build
 docker-compose up -d
 ```
+
+That's it! The Python-based generator will automatically:
+- Read Docker container labels to discover services
+- Generate `apps.json` with full URL lists for each app
+- Create the client-side HTML that selects the appropriate URL based on your current hostname
+- Monitor Docker for changes and regenerate automatically
+
+3. **Configure your environment (optional):**
+   - Update domains in `docker-compose.yml`
+   - Set environment variables (see [Configuration](#configuration) section)
+   - Add container labels for advanced options
+   - Mount custom CSS file if desired
 
 ## Docker Compose Configuration
 
@@ -104,12 +97,17 @@ services:
   traefik-home:
     build:
       context: .
-      dockerfile: Dockerfile.custom
+      dockerfile: Dockerfile
     container_name: traefik-home
     volumes:
+      # Docker socket for reading container labels
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      
+      # Optional: Mount custom CSS
       - ./custom.css:/usr/share/nginx/html/custom.css:ro
-      - ./home.tmpl:/app/home.tmpl:ro
+      
+      # Optional: Mount overrides for custom app metadata
+      # - ./overrides.json:/config/overrides.json:ro
       
     environment:
       # Custom CSS file
@@ -121,7 +119,7 @@ services:
       # Custom background image (optional)
       - CUSTOM_BACKGROUND_URL=
       
-      # Authentik logout URL
+      # Authentik logout URL (optional)
       - AUTHENTIK_LOGOUT_URL=https://auth.example.com/flows/-/default/invalidation/
       
       # Display options
@@ -137,8 +135,14 @@ services:
       - "traefik.http.routers.traefik-home.tls=true"
       - "traefik.http.services.traefik-home.loadbalancer.server.port=80"
       
-      # Authentik forward auth middleware
+      # Authentik forward auth middleware (optional)
       - "traefik.http.routers.traefik-home.middlewares=authentik@docker"
+      
+      # Container-specific configuration (optional)
+      # - "traefik-home.show-footer=true"
+      # - "traefik-home.show-status-dot=true"
+      # - "traefik-home.sort-by=name"
+      # - "traefik-home.open-link-in-new-tab=false"
       
     restart: unless-stopped
     networks:
@@ -157,10 +161,13 @@ networks:
 | `PAGE_TITLE` | Browser page title | `Traefik Home` |
 | `CUSTOM_BACKGROUND_URL` | URL or path to background image | _(none)_ |
 | `AUTHENTIK_LOGOUT_URL` | Authentik logout endpoint | _(required for logout)_ |
-| `TRAEFIK_DYNAMIC_CONFIG` | Path to Traefik dynamic config YAML | _(none)_ |
+| ~~`TRAEFIK_DYNAMIC_CONFIG`~~ | ~~Path to Traefik dynamic config YAML~~ | **OBSOLETE** |
 | `SHOW_FOOTER` | Show footer with version info | `true` |
 | `SHOW_STATUS_DOT` | Show container status indicators | `true` |
 | `OPEN_IN_NEW_TAB` | Open service links in new tab | `false` |
+
+> [!NOTE]
+> `TRAEFIK_DYNAMIC_CONFIG` is obsolete. The new Python implementation reads all service information directly from Docker container labels, eliminating the need for external YAML configuration files.
 
 ## Container Labels Configuration
 
@@ -287,107 +294,100 @@ This URL clears the Authentik session and redirects the user appropriately.
 
 ## External Apps (Non-Docker Services)
 
-Traefik-Home can display services defined in Traefik's dynamic configuration files, not just Docker containers.
+The Python-based generator supports adding external (non-Docker) apps via an `overrides.json` configuration file. This replaces the old YAML-based approach.
 
 ### Setup
 
-1. **Mount your Traefik dynamic config:**
-```yaml
-volumes:
-  - /etc/traefik/dynamic:/etc/traefik/dynamic:ro
+1. **Create an overrides.json file:**
+```json
+{
+  "openmediavault": {
+    "Name": "OpenMediaVault",
+    "Icon": "🗄️",
+    "Description": "Network Attached Storage",
+    "Category": "Infrastructure",
+    "Badge": "NAS",
+    "URLs": ["https://omv.example.com", "http://192.168.0.20:8085"],
+    "Enable": true
+  },
+  "rclone": {
+    "Name": "Rclone WebUI",
+    "Icon": "☁️",
+    "Description": "Cloud Storage Management",
+    "Category": "Tools",
+    "URLs": ["https://rclone.example.com"],
+    "Enable": true
+  }
+}
 ```
 
-2. **Set environment variable:**
+2. **Mount the overrides file in docker-compose.yml:**
 ```yaml
-environment:
-  - TRAEFIK_DYNAMIC_CONFIG=/etc/traefik/dynamic/rules.yml
+services:
+  traefik-home:
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./overrides.json:/config/overrides.json:ro
 ```
 
-3. **Define services in Traefik config:**
-```yaml
-# /etc/traefik/dynamic/rules.yml
-http:
-  routers:
-    omv:
-      entryPoints:
-        - websecure
-      rule: "Host(`omv.example.com`)"
-      service: omv
-    
-    rclone:
-      entryPoints:
-        - web
-      rule: "Host(`rclone.example.com`)"
-      service: rclone
+3. **The generator automatically includes override entries** in the generated apps.json
 
-  services:
-    omv:
-      loadBalancer:
-        servers:
-          - url: "http://192.168.0.20:8085"
-    
-    rclone:
-      loadBalancer:
-        servers:
-          - url: "http://192.168.0.20:5572"
+### Override Configuration Options
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| `Name` | Display name for the app | Yes |
+| `URLs` | Array of URLs for the app | Yes |
+| `Icon` | Emoji or URL for app icon | No |
+| `Description` | App description text | No |
+| `Category` | Category for grouping | No (default: "Apps") |
+| `Badge` | Badge text (e.g., "BETA", "NEW") | No |
+| `Enable` | Show/hide the app | No (default: true) |
+| `Hide` | Alternative to `Enable: false` | No |
+| `Disable` | Disable app entry | No |
+
+### Modifying Docker Apps
+
+You can also use overrides.json to customize Docker-discovered apps:
+
+```json
+{
+  "portainer": {
+    "Name": "Portainer",
+    "Icon": "🐳",
+    "Category": "Admin",
+    "Badge": "ADMIN",
+    "Description": "Docker Management UI"
+  }
+}
 ```
 
-### Customize External Apps
-
-Add labels to the traefik-home container to override external app properties:
-
-```yaml
-traefik-home:
-  labels:
-    # ... other labels ...
-    
-    # Configure OpenMediaVault
-    - "traefik-home.app.omv.enable=true"
-    - "traefik-home.app.omv.alias=OpenMediaVault"
-    - "traefik-home.app.omv.icon=https://www.openmediavault.org/favicon.ico"
-    
-    # Configure Rclone (admin only)
-    - "traefik-home.app.rclone.enable=true"
-    - "traefik-home.app.rclone.alias=Rclone WebUI"
-    - "traefik-home.app.rclone.icon=https://rclone.org/img/logo_on_light__horizontal_color.svg"
-    - "traefik-home.app.rclone.admin=true"
-    
-    # Disable an external app
-    - "traefik-home.app.router.enable=false"
-```
-
-**Note:** The template extracts these labels and passes them to the parser automatically - no environment variables needed!
+The service name must match the Docker Compose service name.
 
 ### How It Works
 
-1. **Parser script** reads the Traefik dynamic YAML file
-2. **Extracts routers** and their associated services
-3. **Builds URLs** from router rules and service backends
-4. **Applies label overrides** from traefik-home container
-5. **Renders cards** alongside Docker-based services
-
-### External App Flow
-
 ```
-Traefik Dynamic Config (rules.yml)
-         ↓
-parse-external-apps.sh (parses YAML with yq)
-         ↓
-JSON array of external apps
-         ↓
-Injected into HTML via JavaScript
-         ↓
-Rendered alongside Docker containers
+Docker Containers (Labels) + overrides.json
+          ↓
+Python Generator (app/generate_page.py)
+          ├─ Reads Docker labels
+          ├─ Loads overrides.json
+          ├─ Merges configuration
+          └─ Generates apps.json
+               ↓
+Client-Side JavaScript
+          ├─ Loads apps.json
+          ├─ Selects preferred URL
+          └─ Renders all apps
 ```
 
 ### Notes
 
-- External apps are marked internally as `External: true`
-- They always show as "running" (status dot green)
-- Sorting applies to both Docker and external apps
-- Admin filtering works the same way
-- Service name in labels must match router name in config
-- Requires `yq` tool (included in Docker image)
+- Override-only entries (not in Docker) are included if `Enable` is not explicitly `false`
+- Docker-discovered apps can have their metadata overridden
+- Multiple URLs per app are supported
+- The client-side JS selects the best URL based on current hostname
+- All apps use the same rendering and filtering logic
 
 ### Example Complete Setup
 
@@ -495,49 +495,93 @@ Then reference in service labels:
 
 ## Troubleshooting
 
-### User Button Not Appearing
+### Services Not Appearing
 
-1. Verify Authentik headers are being sent:
+1. **Check Docker labels:**
 ```bash
-curl -H "X-authentik-username: Test User" http://localhost/api/user-info
+# Inspect container labels
+docker inspect <container-name> | grep traefik
+
+# View generator logs
+docker logs traefik-home | grep "Found.*services"
 ```
 
-2. Check Traefik middleware is attached
-3. Verify browser console for errors
+2. **Verify Traefik router rules:**
+   - Must have `traefik.enable=true`
+   - Must have `traefik.http.routers.<name>.rule` with Host()
+   - Router name should not contain "redirect"
 
-### Admin Section Not Showing
-
-1. Confirm `X-authentik-is-admin: true` header is sent
-2. Check Authentik user has admin/superuser status
-3. Verify service has `traefik-home.admin=true` label
-
-### Container Unhealthy
-
+3. **Test generator manually:**
 ```bash
-# Check nginx status
-docker exec traefik-home ps aux | grep nginx
-
-# Test health endpoint
-docker exec traefik-home curl -f http://localhost/health
-
-# View logs
-docker logs traefik-home
+docker exec traefik-home python3 /app/generate_page.py --output-dir /tmp/test
+docker exec traefik-home cat /tmp/test/apps.json
 ```
 
 ### External Apps Not Showing
 
-1. Verify dynamic config file exists and is mounted
-2. Check `TRAEFIK_DYNAMIC_CONFIG` environment variable is set correctly
-3. Ensure YAML is valid: `yq eval . /etc/traefik/dynamic/rules.yml`
-4. Check logs for parsing errors: `docker logs traefik-home | grep "external app"`
-5. Verify router names match between config and labels
+1. **Verify overrides.json is mounted and valid:**
+```bash
+docker exec traefik-home cat /config/overrides.json
+docker exec traefik-home python3 -c "import json; print(json.load(open('/config/overrides.json')))"
+```
 
-### Template Errors
+2. **Check logs for parsing errors:**
+```bash
+docker logs traefik-home | grep -i "override\|error"
+```
 
-If you see template parsing errors:
-1. Ensure `home.tmpl` uses correct syntax: `{{$.Env.VARIABLE}}`
-2. Check docker-gen is running: `docker logs traefik-home | grep docker-gen`
-3. Verify all environment variables are set
+3. **Ensure `Enable` is true or not set to false**
+
+### Configuration Not Applied
+
+1. **Verify environment variables:**
+```bash
+docker exec traefik-home env | grep -E "PAGE_TITLE|CUSTOM_CSS|SHOW_"
+```
+
+2. **Check apps.json config section:**
+```bash
+docker exec traefik-home cat /usr/share/nginx/html/apps.json | grep -A10 '"config"'
+```
+
+3. **Check browser console for JavaScript errors:**
+   - Open Developer Tools → Console
+   - Look for errors loading apps.json
+
+### Container Issues
+
+```bash
+# Check container status
+docker ps -a | grep traefik-home
+
+# View full logs
+docker logs traefik-home
+
+# Test Python generator
+docker exec traefik-home python3 /app/generate_page.py --help
+
+# Check docker-gen process
+docker exec traefik-home ps aux | grep docker-gen
+```
+
+### Generation Errors
+
+If apps.json is not being updated:
+
+1. **Check Docker socket access:**
+```bash
+docker exec traefik-home ls -l /var/run/docker.sock
+```
+
+2. **Manually trigger generation:**
+```bash
+docker exec traefik-home python3 /app/generate_page.py
+```
+
+3. **Check file permissions:**
+```bash
+docker exec traefik-home ls -l /usr/share/nginx/html/
+```
 
 ## Multiple Domains/Paths
 
@@ -567,37 +611,134 @@ docker-compose up -d traefik-home
 
 For major updates, check the changelog and update all files (template, CSS, entrypoint).
 
+## Testing and Development
+
+### Running Tests
+
+The project includes comprehensive pytest test suite covering:
+- Atomic write functionality
+- Traefik rule parsing
+- URL map building from Docker labels
+- App list generation
+- CLI integration
+
+**Run tests locally:**
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=app.generate_page --cov-report=html
+```
+
+All 35 tests must pass before merging changes.
+
+### Local Development
+
+**Generate page locally without Docker:**
+
+```bash
+# Run the generator (requires Docker socket access)
+python3 app/generate_page.py --output-dir ./output --overrides ./overrides.json
+
+# View generated files
+cat ./output/apps.json
+cat ./output/index.html
+```
+
+**Test with custom configuration:**
+
+Create an `overrides.json` file:
+```json
+{
+  "myapp": {
+    "Name": "My Custom App",
+    "Icon": "🚀",
+    "Description": "Custom application",
+    "Category": "Tools",
+    "Badge": "NEW",
+    "Hide": false,
+    "Disable": false
+  }
+}
+```
+
+**Build Docker image:**
+
+```bash
+# Build production image
+docker build -t traefik-home:latest .
+
+# Build with specific Python version
+docker build --build-arg PYTHON_VERSION=3.11 -t traefik-home:dev .
+
+# Test the image
+docker run -v /var/run/docker.sock:/var/run/docker.sock:ro traefik-home:latest
+```
+
+### Continuous Integration
+
+GitHub Actions automatically runs tests on:
+- Push to master branch
+- Pull requests to master branch
+
+See `.github/workflows/pytest.yml` for CI configuration.
+
 ## Architecture
 
 ```
-User Request
+Docker Containers (with Traefik labels)
     ↓
-Traefik (Forward Auth)
-    ↓
-Authentik (Validates Session)
-    ↓ (Returns Headers)
-Traefik → Traefik-Home
-    ↓
-Nginx (Serves Page + API Endpoint)
-    ↓
-JavaScript (Fetches User Info)
-    ↓
-Displays Services + Admin Section (if admin)
+Python Generator (app/generate_page.py)
+    ├─ Reads Docker socket
+    ├─ Parses Traefik router rules
+    ├─ Reads environment variables & container labels
+    └─ Generates apps.json + HTML
+        ↓
+Client-Side JavaScript
+    ├─ Fetches apps.json
+    ├─ Selects preferred URL (based on window.location.hostname)
+    ├─ Applies configuration (theme, layout, behavior)
+    └─ Renders dynamic UI
+        ↓
+User sees homepage with all services
 ```
+
+**Key Components:**
+- **Python Generator**: Reads Docker labels and generates static files
+- **docker-gen**: Monitors Docker changes and triggers regeneration
+- **Client-Side JS**: Selects appropriate URL and applies config at runtime
+- **Nginx**: Serves static files (apps.json and HTML)
+- **Traefik**: Routes traffic and optionally handles authentication
 
 ## File Structure
 
 ```
 traefik-home/
-├── docker-compose.yml          # Main configuration
-├── Dockerfile                  # Custom Docker image
+├── docker-compose.yml          # Docker Compose configuration
+├── Dockerfile                  # Production Docker image (Python-based)
+├── requirements.txt            # Python dependencies
 ├── app/
-│   ├── docker-entrypoint.sh    # Auto-configures nginx
-│   ├── parse-external-apps.sh  # Parses Traefik dynamic config
-│   └── home.tmpl               # Page template
+│   ├── generate_page.py        # Main Python generator
+│   ├── entrypoint.sh           # Container entrypoint
+│   └── templates/
+│       ├── home-client.tmpl    # Client-side HTML template
+│       ├── trigger.tmpl        # docker-gen trigger template
+│       └── home.tmpl           # Compatibility placeholder
+├── tests/
+│   ├── test_generate_page.py  # Unit tests for generator
+│   ├── test_cli_integration.py # Integration tests
+│   └── test_atomic_write.py    # Atomic write tests
+├── .github/
+│   └── workflows/
+│       └── pytest.yml          # CI/CD workflow
 ├── sample/
-│   ├── custom.css              # Example styling (copy to customize)
-│   └── rules.yml               # Example Traefik external services
+│   ├── custom.css              # Example custom styling
+│   └── original.css            # Original styling reference
 └── README.md                   # This file
 ```
 
@@ -680,7 +821,6 @@ environment:
   - CUSTOM_CSS_URL=/custom.css
   - CUSTOM_BACKGROUND_URL=https://example.com/bg.jpg
   - AUTHENTIK_LOGOUT_URL=https://auth.example.com/flows/-/default/invalidation/
-  - TRAEFIK_DYNAMIC_CONFIG=/etc/traefik/dynamic/rules.yml
   - SHOW_FOOTER=true
   - SHOW_STATUS_DOT=true
   - OPEN_IN_NEW_TAB=false
@@ -691,31 +831,31 @@ environment:
 ```
 Build-time (copied into image):
   - Dockerfile:      ./Dockerfile
-  - Entrypoint:      ./app/docker-entrypoint.sh → /app/docker-entrypoint.sh
-  - Parser:          ./app/parse-external-apps.sh → /app/parse-external-apps.sh
-  - Template:        ./app/home.tmpl → /app/home.tmpl
-  - Sample CSS:      ./sample/custom.css (reference only)
-  - Sample Rules:    ./sample/rules.yml (reference only)
+  - Generator:       ./app/generate_page.py → /app/generate_page.py
+  - Entrypoint:      ./app/entrypoint.sh → /app/entrypoint.sh
+  - Templates:       ./app/templates/ → /app/templates/
+  - Requirements:    ./requirements.txt
+  - Tests:           ./tests/ (not included in image)
 
 Runtime (mounted or auto-generated):
-  - Custom CSS:      ./custom.css → /usr/share/nginx/html/custom.css (if mounted)
-  - Traefik Rules:   /etc/traefik/dynamic/rules.yml (host) → /etc/traefik/dynamic/rules.yml (container)
-  - Nginx Config:    /etc/nginx/conf.d/default.conf (auto-generated)
-  - HTML Output:     /usr/share/nginx/html/index.html
+  - Docker Socket:   /var/run/docker.sock (read-only)
+  - Custom CSS:      ./custom.css → /usr/share/nginx/html/custom.css (optional)
+  - Overrides:       ./overrides.json → /config/overrides.json (optional)
+  - Apps JSON:       /usr/share/nginx/html/apps.json (auto-generated)
+  - HTML Output:     /usr/share/nginx/html/index.html (auto-generated)
   - Health Check:    http://localhost/health
-  - User API:        http://localhost/api/user-info
 ```
 
 ### Common Issues & Solutions
 
 | Issue | Solution |
 |-------|----------|
-| User button not showing | Check Authentik headers in `/api/user-info` |
-| External apps missing | Verify `TRAEFIK_DYNAMIC_CONFIG` path and YAML syntax |
-| Admin section hidden | Ensure `X-authentik-is-admin: true` header is sent |
-| Template errors | Check syntax: `{{$.Env.VARIABLE}}` not `{{getenv}}` |
-| Container unhealthy | Test: `curl http://localhost/health` |
-| Services not appearing | Check `traefik.enable=true` label |
+| Services not appearing | Check `traefik.enable=true` label and Traefik router configuration |
+| External apps missing | Verify `overrides.json` is mounted and has valid JSON |
+| Configuration not applied | Check environment variables and container labels |
+| apps.json not updating | Verify Docker socket access and check logs |
+| Container unhealthy | Check Python generator and docker-gen processes |
+| Client-side errors | Open browser console to see JavaScript errors |
 
 ---
 
