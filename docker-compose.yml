@@ -31,6 +31,9 @@ services:
       - SHOW_FOOTER=true
       - SHOW_STATUS_DOT=true
       - OPEN_IN_NEW_TAB=false
+
+      # DEBUGGING
+      - VERBOSE=true
       
     labels:
       # Traefik configuration
@@ -65,13 +68,40 @@ services:
       - "traefik-home.app.traefik-ui.icon=https://traefik.io/favicon.ico"
       - "traefik-home.app.traefik-ui.admin=true"
 
+      # External app: Open WebUI (LLM chat on ollama.local) - Traefik routers ai-lan/ai-admin live in /home/traefik/dynamic/openwebui.yml
+      - "traefik-home.app.ai-lan.enable=true"
+      - "traefik-home.app.ai-lan.alias=AI Chat (Open WebUI)"
+      - "traefik-home.app.ai-lan.icon=https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/open-webui.png"
+      - "traefik-home.app.ai-admin.enable=true"
+      - "traefik-home.app.ai-admin.alias=AI Chat admin (Open WebUI)"
+      - "traefik-home.app.ai-admin.icon=https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/open-webui.png"
+      - "traefik-home.app.ai-admin.admin=true"
+
+      # External app: OMV CTerm
+      - "traefik-home.app.cterm.enable=true"
+      - "traefik-home.app.cterm.alias=Container Terminal"
+      - "traefik-home.app.cterm.icon=https://www.docker.com/app/uploads/2024/02/cropped-docker-logo-favicon-270x270.png"
+      - "traefik-home.app.cterm.admin=true"
+
       # External app: Home Assistant
-      # - "traefik-home.app.homeassistant.enable=true"
-      # - "traefik-home.app.homeassistant.alias=Home Assistant"
-      # - "traefik-home.app.homeassistant.icon=https://www.home-assistant.io/images/favicon.ico"
-      
+      - "traefik-home.app.homeassistant.enable=true"
+      - "traefik-home.app.homeassistant.admin=true"
+      - "traefik-home.app.homeassistant.alias=Home Assistant"
+      - "traefik-home.app.homeassistant.icon=https://www.home-assistant.io/images/favicon.ico"
+      - "traefik-home.app.homeassistant.url=http://raspberrypi.local:8123/"
+
+      # External app: ProxMox server
+      - "traefik-home.app.pve.enable=true"
+      - "traefik-home.app.pve.admin=true"
+      - "traefik-home.app.pve.alias=ProxMox server (pve)"
+      - "traefik-home.app.pve.icon=https://www.proxmox.com/favicon.ico"
+      - "traefik-home.app.pve.url=http://pve.local:8006"
+
       # External app: Router - disabled by default
       - "traefik-home.app.router.enable=false"
+
+      - "docker-mdns.enable=true"
+      - "docker-mdns.host=cterm.locker.local omv.locker.local rclone.locker.local ai.locker.local ai-admin.locker.local ai.local"
       
     restart: unless-stopped
     networks:
@@ -89,6 +119,8 @@ services:
       - "traefik.http.services.whoami.loadbalancer.server.port=80"
       - "traefik-home.icon=https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/traefik.png"
       - "traefik-home.alias=Who Am I"
+      - "docker-mdns.enable=true"
+      - "docker-mdns.host=whoami.locker.local whoami.local"
     restart: unless-stopped
     networks:
       - proxy
